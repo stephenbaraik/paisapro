@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(pip install:*)",
+      "Bash(npx tsc:*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "Bash(find frontend:*)",
+      "mcp__supabase__list_tables",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/services/analytics.py''\\).read\\(\\)\\); print\\(''analytics.py OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/scheduler.py''\\).read\\(\\)\\); print\\(''scheduler.py OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/api/routes/analytics.py''\\).read\\(\\)\\); print\\(''routes/analytics.py OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/scripts/backfill_nifty500.py''\\).read\\(\\)\\); print\\(''backfill_nifty500.py OK''\\)\")",
+      "Bash(tasklist)",
+      "Bash(findstr /i 'python uvicorn')",
+      "Bash(wmic process:*)",
+      "Bash(taskkill /F /PID 16508)",
+      "Bash(taskkill /F /PID 15280)",
+      "Bash(taskkill //F //PID 16508)",
+      "Bash(taskkill //F //PID 15280)",
+      "Bash(.venv/Scripts/python -m uvicorn backend.app.main:app --port 8001 --host 0.0.0.0)",
+      "Bash(curl -s http://localhost:8001/health)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/python -m pip install apscheduler)",
+      "Bash(uv pip:*)",
+      "Bash(curl -s http://localhost:8001/api/v1/analytics/report)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''Stocks analyzed: {d[\"\"stocks_analyzed\"\"]}, BUY: {d[\"\"buy_count\"\"]}, SELL: {d[\"\"sell_count\"\"]}, HOLD: {d[\"\"hold_count\"\"]}''''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import os; from dotenv import load_dotenv; load_dotenv\\(\\); print\\(os.getenv\\(''SUPABASE_URL'', ''NOT SET''\\)[:50]\\)\")",
+      "Bash(curl -s \"http://localhost:8001/api/v1/analytics/screener?limit=5\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''Total: {d[\"\"total\"\"]}, BUY: {d[\"\"buy_count\"\"]}, SELL: {d[\"\"sell_count\"\"]}''''\\)\")",
+      "Bash(curl -s --max-time 10 \"http://localhost:8001/api/v1/analytics/report\")",
+      "Bash(curl -s \"http://localhost:8001/api/v1/analytics/report\" --max-time 300)",
+      "Bash(python -c \":*)",
+      "Bash(curl -s \"http://localhost:8001/api/v1/analytics/screener?sort_by=composite_score&limit=30\")",
+      "Bash(uv run:*)",
+      "Bash(taskkill //PID 17128 //F)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}
