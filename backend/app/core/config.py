@@ -1,0 +1,36 @@
+from pathlib import Path
+from pydantic_settings import BaseSettings
+from functools import lru_cache
+
+_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
+
+class Settings(BaseSettings):
+    # App
+    app_env: str = "development"
+    backend_port: int = 8000
+    frontend_url: str = "http://localhost:5173"
+
+    # Supabase
+    supabase_url: str
+    supabase_anon_key: str
+    supabase_service_role_key: str
+
+    # OpenRouter
+    openrouter_api_key: str
+
+    # Alpha Vantage
+    alpha_vantage_api_key: str = ""
+
+    # Pipeline
+    nse_data_start_year: int = 2019
+
+    class Config:
+        env_file = str(_ENV_FILE)
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
