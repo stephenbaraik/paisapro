@@ -112,6 +112,7 @@ export default function MacroDashboard() {
 
   const regime = REGIME_CONFIG[data.market_regime] || REGIME_CONFIG.NEUTRAL
   const RegimeIcon = regime.icon
+  const hasData = data.indicators.length > 0
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 8px' }}>
@@ -126,19 +127,34 @@ export default function MacroDashboard() {
         </button>
       </div>
 
-      {/* Market Regime Banner */}
-      <div className="card" style={{ padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, borderLeft: `3px solid ${regime.color}` }}>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: regime.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <RegimeIcon size={20} color={regime.color} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 15, fontWeight: 800, color: regime.color }}>{data.market_regime.replace('_', ' ')}</span>
-            <Globe size={14} color="var(--text-muted)" />
+      {!hasData && (
+        <div className="card" style={{ padding: '40px 20px', textAlign: 'center', marginBottom: 24 }}>
+          <Globe size={36} color="var(--text-muted)" style={{ marginBottom: 12 }} />
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>Macro data temporarily unavailable</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+            Market data provider is not responding. This usually resolves within a few minutes.
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{data.regime_description}</div>
+          <button onClick={() => refetch()} className="btn-secondary" style={{ padding: '8px 20px', fontSize: 13 }} disabled={isFetching}>
+            <RefreshCw size={13} className={isFetching ? 'spin' : ''} style={{ marginRight: 6 }} /> Try Again
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* Market Regime Banner */}
+      {hasData && (
+        <div className="card" style={{ padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, borderLeft: `3px solid ${regime.color}` }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: regime.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <RegimeIcon size={20} color={regime.color} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: regime.color }}>{data.market_regime.replace('_', ' ')}</span>
+              <Globe size={14} color="var(--text-muted)" />
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{data.regime_description}</div>
+          </div>
+        </div>
+      )}
 
       {/* Indicator Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -146,25 +162,27 @@ export default function MacroDashboard() {
       </div>
 
       {/* Time Series Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-        {data.time_series.map((ts, idx) => (
-          <div key={ts.name} className="card" style={{ padding: 20 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-secondary)' }}>{ts.name} (1Y)</h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={ts.data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} interval={Math.floor(ts.data.length / 6)} />
-                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
-                  formatter={(v: any) => Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                />
-                <Line type="monotone" dataKey="value" stroke={CHART_COLORS[idx % CHART_COLORS.length]} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ))}
-      </div>
+      {data.time_series.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+          {data.time_series.map((ts, idx) => (
+            <div key={ts.name} className="card" style={{ padding: 20 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: 'var(--text-secondary)' }}>{ts.name} (1Y)</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={ts.data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} interval={Math.floor(ts.data.length / 6)} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} domain={['auto', 'auto']} />
+                  <Tooltip
+                    contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
+                    formatter={(v: any) => Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  />
+                  <Line type="monotone" dataKey="value" stroke={CHART_COLORS[idx % CHART_COLORS.length]} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Correlation Matrix */}
       {data.correlations.length > 0 && (
