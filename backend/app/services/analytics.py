@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import time
 import logging
+import warnings
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -26,6 +27,9 @@ from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from scipy.optimize import minimize
+
+# Suppress sklearn parallel warnings when used inside ThreadPoolExecutor
+warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
 
 from ..schemas.analytics import (
     SignalDirection,
@@ -660,7 +664,7 @@ def train_rf_classifier(df: pd.DataFrame, symbol: str = "") -> tuple[float, Sign
     if len(X_train) < 30 or len(set(y_train)) < 2:
         return 0.5, SignalDirection.HOLD
 
-    clf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42, n_jobs=1)
+    clf = RandomForestClassifier(n_estimators=30, max_depth=3, random_state=42, n_jobs=1)
     clf.fit(X_train, y_train)
 
     prob_up = float(clf.predict_proba(df_c[_FEATURES].values[-1:, :])[0][1])
@@ -825,7 +829,7 @@ def cluster_stocks(symbols: list[str]) -> ClusteringResult:
 
     X = np.array(feat_rows)
     X_sc = StandardScaler().fit_transform(X)
-    km = KMeans(n_clusters=4, random_state=42, n_init=10)
+    km = KMeans(n_clusters=4, random_state=42, n_init=3)
     labels = km.fit_predict(X_sc)
 
     # Label clusters by centroid volatility (ascending)
@@ -1195,7 +1199,7 @@ def get_analytics_report(force_refresh: bool = False) -> AnalyticsReport:
 
     results: dict[str, dict] = {}
     universe = get_stock_universe()
-    with ThreadPoolExecutor(max_workers=20) as pool:
+    with ThreadPoolExecutor(max_workers=10) as pool:
         fmap = {pool.submit(_analyze_stock_worker, sym, nifty_df): sym for sym in universe}
         for fut in as_completed(fmap):
             sym = fmap[fut]
