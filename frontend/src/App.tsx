@@ -17,6 +17,7 @@ import MacroDashboard from './pages/MacroDashboard'
 import RiskFactors from './pages/RiskFactors'
 import Portfolio from './pages/Portfolio'
 import NewsSentiment from './pages/NewsSentiment'
+import MLPrediction from './pages/MLPrediction'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5 * 60 * 1000 } },
@@ -49,6 +50,7 @@ export default function App() {
                 <Route path="/risk-factors" element={<RiskFactors />} />
                 <Route path="/portfolio" element={<Portfolio />} />
                 <Route path="/news" element={<NewsSentiment />} />
+                <Route path="/ml-prediction" element={<MLPrediction />} />
               </Routes>
             </Layout>
           } />

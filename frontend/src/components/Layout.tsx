@@ -3,7 +3,7 @@ import {
   LayoutDashboard, TrendingUp, Target,
   BarChart2, Filter, PieChart, BarChart3, Sparkles,
   Sun, Moon, Activity, RotateCcw, Waves, Globe, Layers,
-  Briefcase, Newspaper,
+  Briefcase, Newspaper, Brain,
 } from 'lucide-react'
 import { useThemeStore } from '../store/themeStore'
 
@@ -33,6 +33,7 @@ const NAV_SECTIONS = [
       { to: '/volatility',      label: 'Volatility (GARCH)', icon: Waves },
       { to: '/macro',           label: 'Macro Dashboard',    icon: Globe },
       { to: '/risk-factors',    label: 'Risk Factors',       icon: Layers },
+      { to: '/ml-prediction',   label: 'ML Predictor',       icon: Brain },
     ],
   },
   {
