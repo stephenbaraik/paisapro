@@ -46,7 +46,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-_origins = [settings.frontend_url, "http://localhost:5173"]
+_origins = [settings.frontend_url, "http://localhost:5173", "https://paisapro.netlify.app"]
 # Allow Hugging Face Spaces preview URLs
 if settings.app_env == "production":
     _origins.append("https://huggingface.co")
