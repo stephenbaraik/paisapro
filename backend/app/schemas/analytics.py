@@ -276,3 +276,64 @@ class SmartPortfolioResponse(BaseModel):
     # Aggregate stats
     portfolio_predicted_return: float   # weighted 30-day forecast
     portfolio_risk_score: float         # 0-100
+
+
+# ── Time Series Analysis ─────────────────────────────────────────────────────
+
+class ModelForecast(BaseModel):
+    """Forecast output from a single model."""
+    model_name: str                     # "ARIMA", "ETS", "Linear Trend"
+    forecast: list[ForecastPoint]
+    rmse: float                         # root-mean-square error on validation set
+    aic: Optional[float] = None         # Akaike info criterion (ARIMA/ETS)
+    order: Optional[str] = None         # e.g. "(1,1,1)" for ARIMA
+
+
+class SeasonalDecomposition(BaseModel):
+    date: str
+    observed: float
+    trend: Optional[float] = None
+    seasonal: Optional[float] = None
+    residual: Optional[float] = None
+
+
+class StationarityTest(BaseModel):
+    test_name: str                      # "ADF" or "KPSS"
+    statistic: float
+    p_value: float
+    is_stationary: bool
+    interpretation: str
+
+
+class AutocorrelationPoint(BaseModel):
+    lag: int
+    acf: float
+    pacf: float
+
+
+class TimeSeriesAnalysisResult(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str
+    current_price: float
+    data_points: int                    # number of historical observations used
+
+    # Decomposition
+    decomposition: list[SeasonalDecomposition]
+
+    # Stationarity tests
+    stationarity_tests: list[StationarityTest]
+
+    # ACF / PACF
+    autocorrelation: list[AutocorrelationPoint]
+
+    # Model forecasts (multiple models compared)
+    model_forecasts: list[ModelForecast]
+    best_model: str                     # name of best-performing model
+
+    # Summary
+    predicted_return_pct: float
+    trend: str                          # "BULLISH" | "BEARISH" | "NEUTRAL"
+    volatility_30d: float
+    support_level: float
+    resistance_level: float

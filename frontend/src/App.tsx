@@ -10,6 +10,13 @@ import AIAdvisor from './pages/AIAdvisor'
 import StockScreener from './pages/StockScreener'
 import PortfolioOptimizer from './pages/PortfolioOptimizer'
 import AnalyticsReport from './pages/AnalyticsReport'
+import TimeSeriesAnalysis from './pages/TimeSeriesAnalysis'
+import SectorRotation from './pages/SectorRotation'
+import VolatilityForecast from './pages/VolatilityForecast'
+import MacroDashboard from './pages/MacroDashboard'
+import RiskFactors from './pages/RiskFactors'
+import Portfolio from './pages/Portfolio'
+import NewsSentiment from './pages/NewsSentiment'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5 * 60 * 1000 } },
@@ -35,6 +42,13 @@ export default function App() {
                 <Route path="/screener"  element={<StockScreener />} />
                 <Route path="/optimizer" element={<PortfolioOptimizer />} />
                 <Route path="/analytics" element={<AnalyticsReport />} />
+                <Route path="/timeseries" element={<TimeSeriesAnalysis />} />
+                <Route path="/sector-rotation" element={<SectorRotation />} />
+                <Route path="/volatility" element={<VolatilityForecast />} />
+                <Route path="/macro" element={<MacroDashboard />} />
+                <Route path="/risk-factors" element={<RiskFactors />} />
+                <Route path="/portfolio" element={<Portfolio />} />
+                <Route path="/news" element={<NewsSentiment />} />
               </Routes>
             </Layout>
           } />

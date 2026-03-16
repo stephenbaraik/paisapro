@@ -15,8 +15,10 @@ from ...schemas.analytics import (
     BacktestResult,
     SmartPortfolioRequest,
     SmartPortfolioResponse,
+    TimeSeriesAnalysisResult,
 )
 from ...services import analytics as svc
+from ...services import timeseries as ts_svc
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -119,5 +121,20 @@ def backtest(symbol: str):
 def smart_portfolio(body: SmartPortfolioRequest):
     """Auto-select best stocks, optimise portfolio, and forecast each pick."""
     return svc.build_smart_portfolio(body.risk_profile, body.top_n, body.n_portfolios)
+
+
+@router.get("/timeseries/{symbol}", response_model=TimeSeriesAnalysisResult)
+def timeseries_analysis(symbol: str, horizon: int = Query(30, ge=7, le=90)):
+    """ARIMA + ETS time-series analysis with decomposition and stationarity tests."""
+    result = ts_svc.run_timeseries_analysis(symbol, horizon)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Not enough data for {symbol} (need ≥120 observations)")
+    return result
+
+
+@router.get("/timeseries-symbols")
+def timeseries_symbols():
+    """Return list of symbols available for time-series analysis."""
+    return ts_svc.get_available_symbols()
 
 

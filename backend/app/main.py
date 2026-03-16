@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core.config import get_settings
-from .api.routes import planner, advisor, stocks, analytics
+from .api.routes import planner, advisor, stocks, analytics, advanced_analytics, portfolio
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -46,9 +46,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_origins = [settings.frontend_url, "http://localhost:5173", "https://paisapro.netlify.app"]
+# Allow Hugging Face Spaces preview URLs
+if settings.app_env == "production":
+    _origins.append("https://huggingface.co")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:5173"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,8 +63,10 @@ app.include_router(planner.router, prefix="/api/v1")
 app.include_router(advisor.router, prefix="/api/v1")
 app.include_router(stocks.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(advanced_analytics.router, prefix="/api/v1")
+app.include_router(portfolio.router, prefix="/api/v1")
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "AI Investment Advisor Backend"}
+    return {"status": "ok", "service": "AI Investment Advisor Backend", "version": "1.1.0"}

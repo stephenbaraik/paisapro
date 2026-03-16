@@ -76,7 +76,7 @@ export default function StockScreener() {
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Screener</div>
           <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }} className="gradient-text-heading">Stock Screener</h1>
-          <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 14 }}>Filter Nifty 50 stocks by ML-driven signals and risk metrics</p>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 14 }}>Filter Nifty 500 stocks by ML-driven signals and risk metrics</p>
         </div>
         <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--grad-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.85 }}>
           <Filter size={18} color="#fff" />
