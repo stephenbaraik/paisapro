@@ -4,7 +4,29 @@ import { Filter, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getScreener } from '../api/client'
 import type { ScreenerStock, SignalDirection } from '../types'
 
-const SECTORS = ['All', 'Technology', 'Banking', 'FMCG', 'Energy', 'Auto', 'Pharma', 'Finance', 'Telecom', 'Infrastructure', 'Utilities', 'Metals', 'Conglomerate', 'Consumer', 'Insurance', 'Cement']
+const SECTORS = [
+  'All',
+  'Financial Services',
+  'Capital Goods',
+  'Healthcare',
+  'Automobile and Auto Components',
+  'Fast Moving Consumer Goods',
+  'Information Technology',
+  'Chemicals',
+  'Consumer Services',
+  'Consumer Durables',
+  'Oil Gas & Consumable Fuels',
+  'Power',
+  'Metals & Mining',
+  'Services',
+  'Construction',
+  'Construction Materials',
+  'Realty',
+  'Telecommunication',
+  'Textiles',
+  'Media Entertainment & Publication',
+  'Diversified',
+]
 const SORT_OPTIONS = [
   { value: 'composite_score', label: 'Signal Score' },
   { value: 'confidence_score', label: 'Confidence' },
