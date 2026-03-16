@@ -44,17 +44,34 @@ DESCRIPTIONS = {
 }
 
 
-def _fetch_ticker_history(ticker: str, period: str = "1y") -> pd.DataFrame:
+def _batch_download(tickers: list[str], period: str = "1y") -> dict[str, pd.DataFrame]:
+    """Batch-download all tickers via yf.download (more reliable on cloud IPs)."""
+    result: dict[str, pd.DataFrame] = {}
     try:
-        data = yf.Ticker(ticker).history(period=period, interval="1d", auto_adjust=True)
-        if data.empty:
-            return pd.DataFrame()
-        data = data.reset_index()
-        data.rename(columns={"Date": "date", "Close": "close"}, inplace=True)
-        data["date"] = pd.to_datetime(data["date"]).dt.tz_localize(None)
-        return data[["date", "close"]].dropna()
-    except Exception:
-        return pd.DataFrame()
+        raw = yf.download(
+            tickers, period=period, interval="1d",
+            auto_adjust=True, threads=True, progress=False,
+        )
+        if raw.empty:
+            logger.warning("Macro: yf.download returned empty for all tickers")
+            return result
+
+        for ticker in tickers:
+            try:
+                if len(tickers) == 1:
+                    df = raw[["Close"]].copy()
+                else:
+                    df = raw["Close"][[ticker]].copy()
+                df = df.dropna().reset_index()
+                df.columns = ["date", "close"]
+                df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+                if len(df) >= 5:
+                    result[ticker] = df
+            except Exception as e:
+                logger.warning("Macro: failed to extract %s: %s", ticker, e)
+    except Exception as e:
+        logger.error("Macro: yf.download failed: %s", e)
+    return result
 
 
 def _trend(change_pct: float) -> str:
@@ -110,20 +127,19 @@ async def get_macro_dashboard(force: bool = False) -> MacroDashboardResponse:
     if cached and not force and time.time() - ts < _CACHE_TTL:
         return cached
 
-    # Fetch all tickers in parallel using threads (yfinance is blocking I/O)
+    # Batch-download all tickers in one request (avoids per-ticker rate limiting)
     names = list(MACRO_TICKERS.keys())
     tickers = list(MACRO_TICKERS.values())
-    dfs = await asyncio.gather(
-        *[asyncio.to_thread(_fetch_ticker_history, t, "1y") for t in tickers]
-    )
+    ticker_dfs = await asyncio.to_thread(_batch_download, tickers, "1y")
 
     indicators: list[MacroIndicator] = []
     all_series: list[MacroTimeSeries] = []
     returns_dict: dict[str, pd.Series] = {}
 
-    for name, df in zip(names, dfs):
-        if df.empty or len(df) < 5:
-            logger.warning("Macro: no data for %s", name)
+    for name, ticker in zip(names, tickers):
+        df = ticker_dfs.get(ticker)
+        if df is None or len(df) < 5:
+            logger.warning("Macro: no data for %s (%s)", name, ticker)
             continue
 
         current = float(df["close"].iloc[-1])
