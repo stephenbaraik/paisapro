@@ -8,12 +8,12 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Install Python dependencies
+# Install Python dependencies (root requirements.txt)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy only the backend application code into /app/app/
+COPY backend/app ./app
 
 # HF Spaces uses port 7860
 EXPOSE 7860
