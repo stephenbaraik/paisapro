@@ -570,6 +570,43 @@ export interface AIBuildResponse {
   risk_profile: string
 }
 
+// ── ML Regression ───────────────────────────────────────────────────────────
+
+export interface FeatureImportance {
+  feature: string
+  importance: number
+}
+
+export interface ModelEval {
+  mae: number
+  rmse: number
+  r2: number
+  directional_accuracy: number
+  cv_mae: number
+}
+
+export interface ModelPrediction {
+  predicted_return: number
+  predicted_price: number
+}
+
+export interface MLPredictionResponse {
+  symbol: string
+  company_name: string
+  current_price: number
+  horizon_days: number
+  predictions: Record<string, ModelPrediction>
+  evaluations: Record<string, ModelEval>
+  ensemble_return: number
+  ensemble_price: number
+  ci_low: number
+  ci_high: number
+  model_agreement_score: number
+  feature_importances: FeatureImportance[]
+  best_model: string
+  generated_at: string
+}
+
 // ── News Sentiment ──────────────────────────────────────────────────────────
 
 export interface NewsArticle {
