@@ -22,25 +22,27 @@ The project is guided by the following specific objectives:
 
 3. **Develop machine learning models for stock classification and anomaly detection**, specifically a Random Forest classifier for 5-day price direction prediction, an Isolation Forest for detecting volume spikes, price spikes, and statistical outliers, and K-Means clustering (k=4) for segmenting the stock universe into defensive, value, momentum, and high-volatility categories.
 
-4. **Implement econometric time-series forecasting** using ARIMA (with data-driven differencing order via ADF stationarity testing and AIC-based order selection), Holt-Winters Exponential Smoothing (damped trend), and linear trend baselines, with automatic model selection based on out-of-sample RMSE on a 30-day validation window.
+4. **Build a multi-model ML regression engine for return forecasting**, training three independent regression models — Random Forest Regressor (200 trees, max depth 6), Ridge Regression (L2 regularisation, alpha=1.0), and Gradient Boosting Regressor (100 estimators, learning rate 0.05) — on ten technical features, generating per-model and ensemble n-day ahead return forecasts with 80% confidence intervals, and computing full model evaluation metrics: MAE, RMSE, R², directional accuracy, and 5-fold time-series cross-validated MAE.
 
-5. **Build a GARCH(1,1) volatility forecasting module** that estimates conditional heteroskedasticity parameters (omega, alpha, beta), classifies volatility regimes (LOW/NORMAL/HIGH/EXTREME) using historical percentile ranking, constructs volatility cones across multiple horizons (5 to 252 days), and generates entry/exit signals.
+5. **Implement econometric time-series forecasting** using ARIMA (with data-driven differencing order via ADF stationarity testing and AIC-based order selection), Holt-Winters Exponential Smoothing (damped trend), and linear trend baselines, with automatic model selection based on out-of-sample RMSE on a 30-day validation window.
 
-6. **Implement a Fama-French-inspired 4-factor risk decomposition model** (Market, Size, Value, Momentum) using OLS regression to estimate factor exposures (betas), Jensen's alpha, R-squared, and residual (idiosyncratic) volatility for any stock in the universe.
+6. **Build a GARCH(1,1) volatility forecasting module** that estimates conditional heteroskedasticity parameters (omega, alpha, beta), classifies volatility regimes (LOW/NORMAL/HIGH/EXTREME) using historical percentile ranking, constructs volatility cones across multiple horizons (5 to 252 days), and generates entry/exit signals.
 
-7. **Construct a sector rotation analysis framework** that computes multi-horizon momentum scores (1M, 3M, 6M, 12M) with exponentially weighted aggregation, classifies the overall market phase (EXPANSION, PEAK, CONTRACTION, TROUGH), and generates OVERWEIGHT/UNDERWEIGHT sector allocation signals.
+7. **Implement a Fama-French-inspired 4-factor risk decomposition model** (Market, Size, Value, Momentum) using OLS regression to estimate factor exposures (betas), Jensen's alpha, R-squared, and residual (idiosyncratic) volatility for any stock in the universe.
 
-8. **Develop Monte Carlo simulation capabilities** for wealth projection (1,000 simulations with normally distributed annual returns, monthly compounding, and annual SIP step-up) and goal-based planning (binary search for required monthly SIP given a target corpus and time horizon).
+8. **Construct a sector rotation analysis framework** that computes multi-horizon momentum scores (1M, 3M, 6M, 12M) with exponentially weighted aggregation, classifies the overall market phase (EXPANSION, PEAK, CONTRACTION, TROUGH), and generates OVERWEIGHT/UNDERWEIGHT sector allocation signals.
 
-9. **Integrate a Large Language Model (Groq — Llama 3.3 70B)** as a conversational AI financial advisor that receives live market context (top signals, anomalies, sector heatmap, market breadth) injected into its system prompt, streams responses via Server-Sent Events (SSE), and is personalized to the user's financial profile.
+9. **Develop Monte Carlo simulation capabilities** for wealth projection (1,000 simulations with normally distributed annual returns, monthly compounding, and annual SIP step-up) and goal-based planning (binary search for required monthly SIP given a target corpus and time horizon).
 
-10. **Build an AI-powered portfolio construction tool** that uses the LLM to select stocks and determine allocation quantities from a curated universe of BUY/HOLD-rated stocks, with post-processing constraints enforcing diversification (minimum 5 stocks, at least 3-4 sectors, maximum 25% per stock, 90-98% allocation with cash buffer).
+10. **Integrate a Large Language Model (Groq — Llama 3.3 70B)** as a conversational AI financial advisor that receives live market context (top signals, anomalies, sector heatmap, market breadth) injected into its system prompt, streams responses via Server-Sent Events (SSE), and is personalized to the user's financial profile.
 
-11. **Implement a news sentiment analysis pipeline** that aggregates articles from Google News RSS for the top 25 Indian stocks, scores sentiment using a financial keyword lexicon (positive/negative word frequency), and provides per-stock and market-wide sentiment summaries.
+11. **Build an AI-powered portfolio construction tool** that uses the LLM to select stocks and determine allocation quantities from a curated universe of BUY/HOLD-rated stocks, with post-processing constraints enforcing diversification (minimum 5 stocks, at least 3-4 sectors, maximum 25% per stock, 90-98% allocation with cash buffer).
 
-12. **Design and build a responsive, theme-aware frontend** using React, TypeScript, Recharts, and Tailwind CSS, featuring 16 interactive pages with real-time data visualization, streaming AI chat, and dark/light mode support.
+12. **Implement a news sentiment analysis pipeline** that aggregates articles from Google News RSS for the top 25 Indian stocks, scores sentiment using a financial keyword lexicon (positive/negative word frequency), and provides per-stock and market-wide sentiment summaries.
 
-13. **Deploy the system to production** with the backend on Hugging Face Spaces (Docker SDK) and the frontend on Netlify, with environment-based configuration, CORS management, and scheduled daily cache refresh (6 PM IST via APScheduler).
+13. **Design and build a responsive, theme-aware frontend** using React, TypeScript, Recharts, and Tailwind CSS, featuring 17 interactive pages with real-time data visualization, streaming AI chat, and dark/light mode support.
+
+14. **Deploy the system to production** with the backend on Hugging Face Spaces (Docker SDK) and the frontend on Netlify, with environment-based configuration, CORS management, and scheduled daily cache refresh (6 PM IST via APScheduler).
 
 ---
 
@@ -48,13 +50,13 @@ The project is guided by the following specific objectives:
 
 The rapid growth of retail participation in the Indian equity market has created a pressing need for accessible, intelligent investment advisory tools. Traditional approaches to financial analysis require deep domain expertise in quantitative methods — time-series econometrics, volatility modelling, portfolio theory, and factor analysis — placing them beyond the reach of most individual investors. Meanwhile, the recent emergence of Large Language Models (LLMs) has opened new possibilities for natural-language financial advisory, but standalone LLMs lack access to real-time market data and rigorous quantitative foundations.
 
-This project presents **PaisaPro.ai**, a full-stack web platform that addresses both challenges by integrating classical quantitative finance with modern AI. The backend, built with Python and FastAPI, implements a complete analytics pipeline: (i) technical indicator computation with weighted composite signal generation, (ii) Random Forest classification and Isolation Forest anomaly detection, (iii) ARIMA and Exponential Smoothing time-series forecasting with automated stationarity preprocessing, (iv) GARCH(1,1) conditional volatility modelling with regime classification, (v) Fama-French 4-factor risk decomposition, (vi) Markowitz-style mean-variance portfolio optimization, and (vii) Monte Carlo simulation for probabilistic wealth projection. A Groq-hosted Llama 3.3 70B model serves as a conversational advisor, receiving live analytics context to ground its recommendations in quantitative evidence.
+This project presents **PaisaPro.ai**, a full-stack web platform that addresses both challenges by integrating classical quantitative finance with modern AI. The backend, built with Python and FastAPI, implements a complete analytics pipeline: (i) technical indicator computation with weighted composite signal generation, (ii) Random Forest classification, Isolation Forest anomaly detection, and K-Means clustering, (iii) multi-model ML regression (Random Forest Regressor, Ridge, Gradient Boosting) for n-day return forecasting with full evaluation metrics (MAE, RMSE, R², directional accuracy, cross-validated MAE), (iv) ARIMA and Exponential Smoothing time-series forecasting with automated stationarity preprocessing, (v) GARCH(1,1) conditional volatility modelling with regime classification, (vi) Fama-French 4-factor risk decomposition, (vii) Markowitz-style mean-variance portfolio optimization, and (viii) Monte Carlo simulation for probabilistic wealth projection. A Groq-hosted Llama 3.3 70B model serves as a conversational advisor, receiving live analytics context to ground its recommendations in quantitative evidence.
 
-The system operates on the Nifty 500 universe, ingesting daily data via yfinance and persisting it in Supabase (PostgreSQL). A multi-tier caching architecture (in-memory with TTLs from 30 minutes to 24 hours) ensures real-time responsiveness. The React/TypeScript frontend provides 16 interactive pages with streaming AI chat, interactive charts (Recharts), and dark/light theme support. The platform is deployed with the backend on Hugging Face Spaces and the frontend on Netlify.
+The system operates on the Nifty 500 universe, ingesting daily data via yfinance and persisting it in Supabase (PostgreSQL). A multi-tier caching architecture (in-memory with TTLs from 30 minutes to 24 hours) ensures real-time responsiveness. The React/TypeScript frontend provides 17 interactive pages with streaming AI chat, interactive charts (Recharts), and dark/light theme support. The platform is deployed with the backend on Hugging Face Spaces and the frontend on Netlify.
 
 Experimental evaluation on live market data demonstrates that the ARIMA model (with data-driven differencing) achieves the lowest validation RMSE for approximately 60% of stocks tested, the GARCH(1,1) model successfully identifies volatility regime transitions, and the composite technical signal achieves directional accuracy consistent with established benchmarks. The AI advisor, augmented with real-time market context, produces contextually relevant and quantitatively grounded investment guidance.
 
-**Keywords:** Indian Equity Market, Time-Series Forecasting, ARIMA, GARCH, Fama-French Factor Model, Portfolio Optimization, Monte Carlo Simulation, Large Language Models, Investment Advisory, Machine Learning, Financial Technology
+**Keywords:** Indian Equity Market, Time-Series Forecasting, ARIMA, GARCH, Fama-French Factor Model, Portfolio Optimization, Monte Carlo Simulation, Large Language Models, Investment Advisory, Machine Learning, Random Forest Regression, Gradient Boosting, Ridge Regression, Model Evaluation, Financial Technology
 
 ---
 
@@ -184,9 +186,10 @@ The system further employs an **event-driven data pipeline** model where a sched
 │  │  (State)   │  │  Query v5 │  │  SSE Fetch │                              │
 │  └───────────┘  └───────────┘  └────────────┘                              │
 │                                                                             │
-│  16 Pages: Dashboard, Planner, Advisor, Portfolio, Screener,               │
+│  17 Pages: Dashboard, Planner, Advisor, Portfolio, Screener,               │
 │            TimeSeries, Volatility, SectorRotation, RiskFactors,            │
-│            Macro, News, Analytics, Optimizer, Scenarios, Landing            │
+│            Macro, News, Analytics, Optimizer, Scenarios, Landing,          │
+│            ML Return Predictor                                             │
 │                                                                             │
 └──────────────────────────────────┬──────────────────────────────────────────┘
                                    │ REST API (JSON) + SSE (Streaming)
@@ -214,7 +217,7 @@ The system further employs an **event-driven data pipeline** model where a sched
 │          │                                                                  │
 │  ┌───────▼─────────────────────────────────────────────────────────────┐    │
 │  │                     DOMAIN / SERVICE LAYER                          │    │
-│  │               (12 Independent Python Modules)                       │    │
+│  │               (13 Independent Python Modules)                       │    │
 │  │                                                                     │    │
 │  │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐        │    │
 │  │  │   analytics.py │  │  timeseries.py │  │  volatility.py │        │    │
@@ -243,6 +246,13 @@ The system further employs an **event-driven data pipeline** model where a sched
 │  │  │  Goal Solver   │  │  Wealth Paths  │  │  Watchlist     │        │    │
 │  │  │  Asset Alloc.  │  │  Percentiles   │  │  P&L Tracking  │        │    │
 │  │  └────────────────┘  └────────────────┘  └────────────────┘        │    │
+│  │  ┌────────────────┐                                                 │    │
+│  │  │ml_regression.py│                                                 │    │
+│  │  │  RF Regressor  │                                                 │    │
+│  │  │  Ridge, GBM    │                                                 │    │
+│  │  │  MAE/RMSE/R²   │                                                 │    │
+│  │  │  CV Eval, CI   │                                                 │    │
+│  │  └────────────────┘                                                 │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -435,15 +445,16 @@ The following diagram shows how the 12 backend service modules interact with eac
    │ (external)   │   │ (external)   │      │  CRUD)       │
    └──────────────┘   └──────────────┘      └──────────────┘
 
-   ┌──────────────┐   ┌──────────────┐
-   │financial_    │   │monte_carlo.py│
-   │engine.py     │   │              │
-   │              │   │ (Pure compute│
-   │ (Pure compute│   │  — no imports│
-   │  — no imports│   │  from other  │
-   │  from other  │   │  services)   │
-   │  services)   │   │              │
-   └──────────────┘   └──────────────┘
+   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+   │financial_    │   │monte_carlo.py│   │ml_regression │
+   │engine.py     │   │              │   │  .py         │
+   │              │   │ (Pure compute│   │              │
+   │ (Pure compute│   │  — no imports│   │ Imports:     │
+   │  — no imports│   │  from other  │   │ _get_cached_ │
+   │  from other  │   │  services)   │   │ df,          │
+   │  services)   │   │              │   │ get_stock_   │
+   │              │   │              │   │ name         │
+   └──────────────┘   └──────────────┘   └──────────────┘
 ```
 
 **Key Architectural Patterns:**
@@ -646,6 +657,7 @@ The architectural decisions in PaisaPro.ai are grounded in established software 
 | Risk factor cache | 1 hour | Factor decompositions |
 | Macro indicator cache | 30 minutes | India VIX, USD/INR, etc. |
 | News sentiment cache | 30 minutes | Article aggregations |
+| ML regression cache | 1 hour | Trained model predictions + evaluations |
 
 ### 6.3 Technical Indicator Computation
 
@@ -746,6 +758,39 @@ Confidence = min(100, (|Score| / 2) * 100)
 - **Clusters (k=4):** DEFENSIVE (low vol, low momentum), VALUE (low momentum, moderate vol), MOMENTUM (high momentum), HIGH_VOLATILITY (high vol)
 - **Standardization:** Features are z-score normalized before clustering
 - **Library:** scikit-learn KMeans
+
+**6.4.4 ML Regression Models (Return Forecasting)**
+
+Three regression models are trained independently per symbol to forecast n-day ahead returns (default: 30 days):
+
+- **Features (10):** RSI-14, MACD, MACD Signal, Bollinger Band Width, Volume Ratio, Price/SMA20, Price/SMA50, 5-day Return, 20-day Return, ATR Normalized
+- **Target:** Continuous n-day forward return — `close.shift(-n) / close - 1`
+- **Train/test split:** 80% train / 20% test (time-ordered, no shuffling)
+
+| Model | Configuration | Characteristic |
+|-------|---------------|----------------|
+| Random Forest Regressor | 200 trees, max_depth=6, random_state=42 | Non-linear ensemble, provides feature importances and tree-variance CI |
+| Ridge Regression | alpha=1.0 (L2 regularisation) | Linear baseline — interpretable, fast, no overfitting |
+| Gradient Boosting Regressor | 100 estimators, max_depth=4, lr=0.05 | Sequential boosting — typically lowest test error |
+
+**Model Evaluation (per model):**
+```
+MAE  = mean(|y_pred - y_test|) × 100             % return units
+RMSE = sqrt(mean((y_pred - y_test)²)) × 100       % return units
+R²   = 1 - SS_res / SS_tot                        variance explained
+Directional Accuracy = mean(sign(y_pred) == sign(y_test)) × 100    % correct up/down
+CV MAE = mean of 5-fold TimeSeriesSplit MAE across full dataset
+```
+
+**Ensemble and Confidence Interval:**
+```
+Ensemble Return = (pred_rf + pred_ridge + pred_gbm) / 3
+80% CI = Ensemble ± 1.28 × std(RF tree predictions)   [uses RF estimator variance]
+Model Agreement Score = max(0, 100 - std(pred_rf, pred_ridge, pred_gbm) × 1000)
+Best Model = argmin(CV MAE) across the three models
+```
+
+**Output:** Per-model predicted return (%), predicted price, MAE, RMSE, R², directional accuracy, CV MAE; ensemble return + price, 80% CI bounds, model agreement score, RF feature importances, best model label.
 
 ### 6.5 Time-Series Forecasting
 
@@ -990,7 +1035,7 @@ Classification: score > 0.15 → POSITIVE, score < -0.15 → NEGATIVE, else NEUT
 - Lucide React (icon library)
 - React Markdown + remark-gfm (AI advisor response rendering)
 
-**Pages (16):**
+**Pages (17):**
 
 | Page | Description | Key Visualizations |
 |------|-------------|-------------------|
@@ -1010,6 +1055,7 @@ Classification: score > 0.15 → POSITIVE, score < -0.15 → NEGATIVE, else NEUT
 | News Sentiment | Market sentiment | Sentiment bar chart, article cards with labels |
 | Analytics Report | Full ML report | Heatmaps, distribution charts, cluster visualization |
 | Scenario Comparison | Side-by-side planning | Dual Monte Carlo outputs |
+| ML Return Predictor | Multi-model regression forecasting with evaluations | Per-model eval cards, feature importance bar chart, radar comparison chart |
 
 ---
 
@@ -1083,7 +1129,7 @@ This project has successfully designed, developed, and deployed PaisaPro.ai — 
 
 **Key Contributions:**
 
-1. **Integrated Quantitative Pipeline:** The platform combines seven technical indicators, three ML models (Random Forest, Isolation Forest, K-Means), three time-series forecasting methods (ARIMA, ETS, Linear), GARCH volatility modelling, Fama-French risk decomposition, sector rotation analysis, and Monte Carlo simulation into a single, coherent system — a level of analytical integration rarely available to retail investors in any market.
+1. **Integrated Quantitative Pipeline:** The platform combines seven technical indicators, six ML models (Random Forest Classifier, Isolation Forest, K-Means, Random Forest Regressor, Ridge Regression, Gradient Boosting), three time-series forecasting methods (ARIMA, ETS, Linear), GARCH volatility modelling, Fama-French risk decomposition, sector rotation analysis, and Monte Carlo simulation into a single, coherent system — a level of analytical integration rarely available to retail investors in any market.
 
 2. **Automated Stationarity Preprocessing:** The data-driven differencing pipeline (ADF testing with iterative differencing and optional log-transform) eliminates a common source of forecasting failure — fitting ARIMA models to non-stationary data. This automation makes time-series analysis accessible to users without econometric training.
 
