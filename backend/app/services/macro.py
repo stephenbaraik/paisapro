@@ -5,11 +5,15 @@ Uses yfinance for market data. FII/DII flows approximated via ETF proxy.
 Correlates macro indicators against Nifty 50 returns.
 """
 
+import asyncio
+import logging
 import time
 import numpy as np
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from ..schemas.advanced_analytics import (
     MacroIndicator, MacroTimeSeries, MacroTimeSeriesPoint,
@@ -106,13 +110,20 @@ async def get_macro_dashboard(force: bool = False) -> MacroDashboardResponse:
     if cached and not force and time.time() - ts < _CACHE_TTL:
         return cached
 
+    # Fetch all tickers in parallel using threads (yfinance is blocking I/O)
+    names = list(MACRO_TICKERS.keys())
+    tickers = list(MACRO_TICKERS.values())
+    dfs = await asyncio.gather(
+        *[asyncio.to_thread(_fetch_ticker_history, t, "1y") for t in tickers]
+    )
+
     indicators: list[MacroIndicator] = []
     all_series: list[MacroTimeSeries] = []
     returns_dict: dict[str, pd.Series] = {}
 
-    for name, ticker in MACRO_TICKERS.items():
-        df = _fetch_ticker_history(ticker, "1y")
+    for name, df in zip(names, dfs):
         if df.empty or len(df) < 5:
+            logger.warning("Macro: no data for %s", name)
             continue
 
         current = float(df["close"].iloc[-1])
@@ -127,13 +138,14 @@ async def get_macro_dashboard(force: bool = False) -> MacroDashboardResponse:
             description=DESCRIPTIONS.get(name, ""),
         ))
 
-        # Time series data
-        ts_points = []
-        for _, row in df.iterrows():
-            ts_points.append(MacroTimeSeriesPoint(
+        # Time series data (vectorised instead of row-by-row)
+        ts_points = [
+            MacroTimeSeriesPoint(
                 date=row["date"].strftime("%Y-%m-%d"),
                 value=round(float(row["close"]), 2),
-            ))
+            )
+            for _, row in df.iterrows()
+        ]
         all_series.append(MacroTimeSeries(name=name, data=ts_points))
 
         # Store returns for correlation
