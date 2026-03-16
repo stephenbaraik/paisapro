@@ -41,11 +41,20 @@ def _daily_refresh():
 
         logger.info("Daily refresh: %d/%d stocks updated.", success, len(universe))
 
-        # 3. Invalidate the report cache so next request rebuilds
+        # 3. Refresh macro data (yfinance → Supabase)
+        try:
+            from .services.macro import refresh_macro_data
+            logger.info("Daily refresh: updating macro indicators…")
+            macro_count = refresh_macro_data()
+            logger.info("Daily refresh: %d macro tickers updated.", macro_count)
+        except Exception as exc:
+            logger.warning("Macro refresh failed: %s", exc)
+
+        # 4. Invalidate the report cache so next request rebuilds
         import app.services.analytics as svc
         svc._report_cache = (None, 0.0)
 
-        # 4. Pre-warm the report cache
+        # 5. Pre-warm the report cache
         logger.info("Daily refresh: rebuilding analytics report…")
         get_analytics_report(force_refresh=True)
         logger.info("Daily refresh complete.")
