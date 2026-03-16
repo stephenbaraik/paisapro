@@ -50,3 +50,6 @@ logs/
 
 # Nested git (HF Spaces has its own repo)
 backend/.git/
+
+# MCP
+*.mcp.json
