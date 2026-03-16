@@ -1,3 +1,12 @@
+---
+title: PaisaPro
+emoji: 💰
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 <div align="center">
 
 # <img src="https://img.icons8.com/fluency/48/rupee.png" width="36" align="center" /> PaisaPro.ai
