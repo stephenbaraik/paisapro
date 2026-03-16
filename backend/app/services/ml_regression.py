@@ -55,6 +55,7 @@ _FEATURE_LABELS = [
 
 def _eval_model(model, X_train, y_train, X_test, y_test, n_splits=5) -> ModelEval:
     """Compute MAE, RMSE, R², directional accuracy, and CV MAE."""
+    model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
     mae  = float(mean_absolute_error(y_test, y_pred))
