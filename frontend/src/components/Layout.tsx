@@ -2,7 +2,8 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, Target,
   BarChart2, Filter, PieChart, BarChart3, Sparkles,
-  Sun, Moon,
+  Sun, Moon, Activity, RotateCcw, Waves, Globe, Layers,
+  Briefcase, Newspaper,
 } from 'lucide-react'
 import { useThemeStore } from '../store/themeStore'
 
@@ -22,6 +23,23 @@ const NAV_SECTIONS = [
       { to: '/screener',  label: 'Stock Screener',       icon: Filter },
       { to: '/optimizer', label: 'Portfolio Optimizer',  icon: PieChart },
       { to: '/analytics', label: 'Analytics Report',     icon: BarChart3 },
+      { to: '/timeseries', label: 'Time Series',          icon: Activity },
+    ],
+  },
+  {
+    label: 'Advanced',
+    items: [
+      { to: '/sector-rotation', label: 'Sector Rotation',    icon: RotateCcw },
+      { to: '/volatility',      label: 'Volatility (GARCH)', icon: Waves },
+      { to: '/macro',           label: 'Macro Dashboard',    icon: Globe },
+      { to: '/risk-factors',    label: 'Risk Factors',       icon: Layers },
+    ],
+  },
+  {
+    label: 'Portfolio',
+    items: [
+      { to: '/portfolio', label: 'Portfolio Tracker', icon: Briefcase },
+      { to: '/news',      label: 'News Sentiment',   icon: Newspaper },
     ],
   },
   {

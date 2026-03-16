@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    # OpenRouter
-    openrouter_api_key: str
+    # Groq (LLM provider)
+    groq_api_key: str
 
     # Alpha Vantage
     alpha_vantage_api_key: str = ""
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     nse_data_start_year: int = 2019
 
     class Config:
-        env_file = str(_ENV_FILE)
+        env_file = str(_ENV_FILE) if _ENV_FILE.exists() else None
         env_file_encoding = "utf-8"
         extra = "ignore"
 

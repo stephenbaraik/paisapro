@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import { TrendingUp, TrendingDown, Minus, Zap, Shield, Target } from 'lucide-react'
 import { getSmartPortfolio } from '../api/client'
-import type { SmartPortfolioResponse, StockForecast } from '../types'
+import type { StockForecast } from '../types'
 
 type TabKey = 'min_variance' | 'max_sharpe' | 'risk_profile'
 

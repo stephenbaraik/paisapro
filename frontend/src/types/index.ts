@@ -293,3 +293,310 @@ export interface SmartPortfolioResponse {
   portfolio_predicted_return: number
   portfolio_risk_score: number
 }
+
+// ── Time Series Analysis ──────────────────────────────────────────────────────
+
+export interface ModelForecast {
+  model_name: string
+  forecast: ForecastPoint[]
+  rmse: number
+  aic: number | null
+  order: string | null
+}
+
+export interface SeasonalDecomposition {
+  date: string
+  observed: number
+  trend: number | null
+  seasonal: number | null
+  residual: number | null
+}
+
+export interface StationarityTest {
+  test_name: string
+  statistic: number
+  p_value: number
+  is_stationary: boolean
+  interpretation: string
+}
+
+export interface AutocorrelationPoint {
+  lag: number
+  acf: number
+  pacf: number
+}
+
+export interface TimeSeriesAnalysisResult {
+  symbol: string
+  company_name: string
+  sector: string
+  current_price: number
+  data_points: number
+  decomposition: SeasonalDecomposition[]
+  stationarity_tests: StationarityTest[]
+  autocorrelation: AutocorrelationPoint[]
+  model_forecasts: ModelForecast[]
+  best_model: string
+  predicted_return_pct: number
+  trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
+  volatility_30d: number
+  support_level: number
+  resistance_level: number
+}
+
+export interface TimeSeriesSymbol {
+  symbol: string
+  company_name: string
+  sector: string
+  data_points: number
+}
+
+// ── Sector Rotation ─────────────────────────────────────────────────────────
+
+export interface SectorMomentum {
+  sector: string
+  stock_count: number
+  return_1m: number
+  return_3m: number
+  return_6m: number
+  return_12m: number
+  momentum_score: number
+  relative_strength: number
+  signal: 'OVERWEIGHT' | 'UNDERWEIGHT' | 'NEUTRAL'
+  avg_rsi: number
+  avg_volatility: number
+}
+
+export interface SectorRotationHistory {
+  date: string
+  sector: string
+  cumulative_return: number
+}
+
+export interface SectorRotationResponse {
+  sectors: SectorMomentum[]
+  rotation_history: SectorRotationHistory[]
+  leading_sectors: string[]
+  lagging_sectors: string[]
+  market_phase: 'EXPANSION' | 'PEAK' | 'CONTRACTION' | 'TROUGH'
+  generated_at: string
+}
+
+// ── Volatility Forecasting (GARCH) ─────────────────────────────────────────
+
+export interface VolatilityPoint {
+  date: string
+  realized_vol: number | null
+  forecast_vol: number | null
+  lower: number | null
+  upper: number | null
+}
+
+export interface VolatilityConePoint {
+  horizon_days: number
+  current_vol: number
+  percentile_10: number
+  percentile_25: number
+  percentile_50: number
+  percentile_75: number
+  percentile_90: number
+}
+
+export interface VolatilityForecastResponse {
+  symbol: string
+  company_name: string
+  sector: string
+  current_price: number
+  current_realized_vol: number
+  garch_forecast_vol: number
+  vol_regime: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME'
+  entry_signal: 'LOW_VOL_ENTRY' | 'HIGH_VOL_CAUTION' | 'NEUTRAL'
+  vol_percentile: number
+  history: VolatilityPoint[]
+  vol_cone: VolatilityConePoint[]
+  garch_params: Record<string, number>
+  generated_at: string
+}
+
+export interface VolSymbol {
+  symbol: string
+  company_name: string
+  sector: string
+}
+
+// ── Macro Dashboard ─────────────────────────────────────────────────────────
+
+export interface MacroIndicator {
+  name: string
+  value: number
+  change_pct: number
+  trend: 'UP' | 'DOWN' | 'FLAT'
+  description: string
+}
+
+export interface MacroTimeSeriesPoint {
+  date: string
+  value: number
+}
+
+export interface MacroTimeSeries {
+  name: string
+  data: MacroTimeSeriesPoint[]
+}
+
+export interface MacroCorrelation {
+  indicator1: string
+  indicator2: string
+  correlation: number
+}
+
+export interface MacroDashboardResponse {
+  indicators: MacroIndicator[]
+  time_series: MacroTimeSeries[]
+  correlations: MacroCorrelation[]
+  market_regime: 'RISK_ON' | 'RISK_OFF' | 'NEUTRAL'
+  regime_description: string
+  generated_at: string
+}
+
+// ── Risk Factor Decomposition ───────────────────────────────────────────────
+
+export interface FactorExposure {
+  factor: string
+  beta: number
+  t_stat: number
+  p_value: number
+  contribution_pct: number
+}
+
+export interface FactorTimeSeries {
+  date: string
+  market: number
+  size: number
+  value: number
+  momentum: number
+}
+
+export interface StockFactorResult {
+  symbol: string
+  company_name: string
+  sector: string
+  factor_exposures: FactorExposure[]
+  r_squared: number
+  alpha: number
+  alpha_t_stat: number
+  residual_vol: number
+  dominant_factor: string
+}
+
+export interface RiskFactorResponse {
+  stocks: StockFactorResult[]
+  factor_returns: FactorTimeSeries[]
+  factor_descriptions: Record<string, string>
+  generated_at: string
+}
+
+// ── Watchlist & Portfolio ────────────────────────────────────────────────────
+
+export interface WatchlistItem {
+  id: number
+  symbol: string
+  company_name: string
+  sector: string
+  current_price: number
+  daily_change_pct: number
+  added_at: string
+  notes: string | null
+}
+
+export interface WatchlistResponse {
+  items: WatchlistItem[]
+  total: number
+}
+
+export interface PortfolioHolding {
+  id: number
+  symbol: string
+  company_name: string
+  sector: string
+  quantity: number
+  buy_price: number
+  buy_date: string
+  current_price: number
+  daily_change_pct: number
+  pnl: number
+  pnl_pct: number
+  market_value: number
+  invested_value: number
+  notes: string | null
+}
+
+export interface PortfolioSummary {
+  total_invested: number
+  total_market_value: number
+  total_pnl: number
+  total_pnl_pct: number
+  holdings_count: number
+  best_performer: string | null
+  worst_performer: string | null
+}
+
+export interface PortfolioResponse {
+  holdings: PortfolioHolding[]
+  summary: PortfolioSummary
+}
+
+// ── AI Portfolio Builder ────────────────────────────────────────────────────
+
+export interface AIPick {
+  symbol: string
+  company_name: string
+  sector: string
+  current_price: number
+  daily_change_pct: number
+  quantity: number
+  allocation: number
+  weight_pct: number
+  reason: string
+}
+
+export interface AIBuildResponse {
+  picks: AIPick[]
+  strategy_summary: string
+  risk_notes: string
+  total_allocated: number
+  cash_remaining: number
+  investment_amount: number
+  risk_profile: string
+}
+
+// ── News Sentiment ──────────────────────────────────────────────────────────
+
+export interface NewsArticle {
+  title: string
+  source: string
+  url: string
+  published_at: string
+  sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL'
+  sentiment_score: number
+  symbols: string[]
+}
+
+export interface SentimentSummary {
+  symbol: string
+  company_name: string
+  article_count: number
+  avg_sentiment: number
+  positive_count: number
+  negative_count: number
+  neutral_count: number
+  sentiment_label: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
+}
+
+export interface NewsSentimentResponse {
+  articles: NewsArticle[]
+  summaries: SentimentSummary[]
+  overall_sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
+  overall_score: number
+  generated_at: string
+}
