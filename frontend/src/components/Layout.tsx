@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, Target,
   BarChart2, Filter, PieChart, BarChart3, Sparkles,
@@ -53,6 +53,7 @@ const NAV_SECTIONS = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggle } = useThemeStore()
+  const navigate = useNavigate()
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
@@ -81,7 +82,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         }} />
 
         {/* Logo */}
-        <div style={{ padding: '6px 10px 28px' }}>
+        <div style={{ padding: '6px 10px 28px', cursor: 'pointer' }} onClick={() => navigate('/')}>
           <div style={{ lineHeight: 1, display: 'flex', alignItems: 'baseline' }}>
             <span style={{
               fontSize: '22px', fontWeight: '800', letterSpacing: '-0.8px',
