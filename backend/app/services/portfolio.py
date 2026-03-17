@@ -5,8 +5,9 @@ CRUD operations on Supabase watchlist + portfolio_holdings tables,
 enriched with live prices from the analytics cache.
 """
 
+import asyncio
 import httpx
-from datetime import datetime, timezone, date
+from datetime import date
 
 from ..core.config import get_settings
 from ..core.database import get_db
@@ -32,44 +33,79 @@ def _sb_url(table: str) -> str:
     return f"{get_settings().supabase_url}/rest/v1/{table}"
 
 
-def _get_latest_price(symbol: str) -> tuple[float, float]:
-    """Return (current_price, daily_change_pct) from cache or Supabase."""
+def _sb_get(url: str, headers: dict, params: dict) -> list:
+    resp = httpx.get(url, headers=headers, params=params, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _sb_post(url: str, headers: dict, payload: dict) -> dict:
+    resp = httpx.post(url, headers=headers, json=payload, timeout=10)
+    resp.raise_for_status()
+    return resp.json()[0]
+
+
+def _sb_delete(url: str, headers: dict, params: dict) -> int:
+    resp = httpx.delete(url, headers=headers, params=params, timeout=10)
+    return resp.status_code
+
+
+def _batch_latest_prices(symbols: list[str]) -> dict[str, tuple[float, float]]:
+    """
+    Return {symbol: (price, change_pct)} for all symbols in a single Supabase query.
+    Falls back to per-symbol cache lookup first, only queries Supabase for misses.
+    """
+    result: dict[str, tuple[float, float]] = {}
+    missing: list[str] = []
+
     try:
         from .analytics import _get_cached_df
-        df = _get_cached_df(f"{symbol}.NS" if not symbol.endswith(".NS") else symbol, "1y")
-        if df is not None and len(df) >= 2:
-            current = float(df["close"].iloc[-1])
-            prev = float(df["close"].iloc[-2])
-            change = (current - prev) / prev * 100 if prev > 0 else 0
-            return current, round(change, 2)
+        for sym in symbols:
+            yf_sym = f"{sym}.NS" if not sym.endswith(".NS") else sym
+            df = _get_cached_df(yf_sym, "1y")
+            if df is not None and len(df) >= 2:
+                current = float(df["close"].iloc[-1])
+                prev = float(df["close"].iloc[-2])
+                change = (current - prev) / prev * 100 if prev > 0 else 0
+                result[sym] = (current, round(change, 2))
+            else:
+                missing.append(sym)
+    except Exception:
+        missing = list(symbols)
+
+    if not missing:
+        return result
+
+    # Batch fetch all missing symbols in one Supabase request using `in.(...)` filter
+    try:
+        db_syms = [s.replace(".NS", "") for s in missing]
+        in_filter = f"in.({','.join(db_syms)})"
+        rows = _sb_get(
+            _sb_url("stock_prices"),
+            _sb_headers(""),
+            {"symbol": in_filter, "select": "symbol,close,date", "order": "date.desc"},
+        )
+        # Keep only the latest 2 rows per symbol
+        seen: dict[str, list[float]] = {}
+        for row in rows:
+            sym = row["symbol"]
+            if len(seen.get(sym, [])) < 2:
+                seen.setdefault(sym, []).append(float(row["close"]))
+        for sym, closes in seen.items():
+            if len(closes) >= 2:
+                change = (closes[0] - closes[1]) / closes[1] * 100 if closes[1] > 0 else 0
+                result[sym] = (closes[0], round(change, 2))
+            elif len(closes) == 1:
+                result[sym] = (closes[0], 0.0)
     except Exception:
         pass
 
-    # Fallback: fetch from Supabase stock_prices
-    try:
-        db_sym = symbol.replace(".NS", "")
-        resp = httpx.get(
-            _sb_url("stock_prices"),
-            headers=_sb_headers(""),
-            params={
-                "symbol": f"eq.{db_sym}",
-                "select": "close",
-                "order": "date.desc",
-                "limit": "2",
-            },
-            timeout=10,
-        )
-        rows = resp.json()
-        if len(rows) >= 2:
-            current = float(rows[0]["close"])
-            prev = float(rows[1]["close"])
-            change = (current - prev) / prev * 100 if prev > 0 else 0
-            return current, round(change, 2)
-        elif len(rows) == 1:
-            return float(rows[0]["close"]), 0.0
-    except Exception:
-        pass
-    return 0.0, 0.0
+    return result
+
+
+def _get_latest_price(symbol: str) -> tuple[float, float]:
+    """Single-symbol price lookup (used by add_to_watchlist / add_holding)."""
+    return _batch_latest_prices([symbol]).get(symbol, (0.0, 0.0))
 
 
 def _get_stock_meta(symbol: str) -> tuple[str, str]:
@@ -98,23 +134,20 @@ def _get_stock_meta(symbol: str) -> tuple[str, str]:
 # ── Watchlist CRUD ───────────────────────────────────────────────────────────
 
 async def get_watchlist() -> WatchlistResponse:
-    resp = httpx.get(
+    rows = await asyncio.to_thread(
+        _sb_get,
         _sb_url("watchlist"),
-        headers=_sb_headers(""),
-        params={
-            "user_id": f"eq.{USER_ID}",
-            "select": "id,symbol,added_at,notes",
-            "order": "added_at.desc",
-        },
-        timeout=10,
+        _sb_headers(""),
+        {"user_id": f"eq.{USER_ID}", "select": "id,symbol,added_at,notes", "order": "added_at.desc"},
     )
-    resp.raise_for_status()
-    rows = resp.json()
+
+    symbols = [r["symbol"] for r in rows]
+    prices = await asyncio.to_thread(_batch_latest_prices, symbols)
 
     items: list[WatchlistItem] = []
     for row in rows:
         sym = row["symbol"]
-        price, change = _get_latest_price(sym)
+        price, change = prices.get(sym, (0.0, 0.0))
         name, sector = _get_stock_meta(sym)
         items.append(WatchlistItem(
             id=row["id"],
@@ -132,14 +165,12 @@ async def get_watchlist() -> WatchlistResponse:
 
 async def add_to_watchlist(req: WatchlistAddRequest) -> WatchlistItem:
     sym = req.symbol.upper().replace(".NS", "")
-    resp = httpx.post(
+    row = await asyncio.to_thread(
+        _sb_post,
         _sb_url("watchlist"),
-        headers=_sb_headers("return=representation"),
-        json={"user_id": USER_ID, "symbol": sym, "notes": req.notes},
-        timeout=10,
+        _sb_headers("return=representation"),
+        {"user_id": USER_ID, "symbol": sym, "notes": req.notes},
     )
-    resp.raise_for_status()
-    row = resp.json()[0]
     price, change = _get_latest_price(sym)
     name, sector = _get_stock_meta(sym)
     return WatchlistItem(
@@ -150,30 +181,31 @@ async def add_to_watchlist(req: WatchlistAddRequest) -> WatchlistItem:
 
 
 async def remove_from_watchlist(item_id: int) -> bool:
-    resp = httpx.delete(
+    status = await asyncio.to_thread(
+        _sb_delete,
         _sb_url("watchlist"),
-        headers=_sb_headers(""),
-        params={"id": f"eq.{item_id}", "user_id": f"eq.{USER_ID}"},
-        timeout=10,
+        _sb_headers(""),
+        {"id": f"eq.{item_id}", "user_id": f"eq.{USER_ID}"},
     )
-    return resp.status_code in (200, 204)
+    return status in (200, 204)
 
 
 # ── Portfolio CRUD ───────────────────────────────────────────────────────────
 
 async def get_portfolio() -> PortfolioResponse:
-    resp = httpx.get(
+    rows = await asyncio.to_thread(
+        _sb_get,
         _sb_url("portfolio_holdings"),
-        headers=_sb_headers(""),
-        params={
+        _sb_headers(""),
+        {
             "user_id": f"eq.{USER_ID}",
             "select": "id,symbol,quantity,buy_price,buy_date,notes,created_at",
             "order": "created_at.desc",
         },
-        timeout=10,
     )
-    resp.raise_for_status()
-    rows = resp.json()
+
+    symbols = [r["symbol"] for r in rows]
+    prices = await asyncio.to_thread(_batch_latest_prices, symbols)
 
     holdings: list[PortfolioHolding] = []
     total_invested = 0.0
@@ -185,7 +217,7 @@ async def get_portfolio() -> PortfolioResponse:
         sym = row["symbol"]
         qty = float(row["quantity"])
         buy_px = float(row["buy_price"])
-        price, change = _get_latest_price(sym)
+        price, change = prices.get(sym, (0.0, 0.0))
         name, sector = _get_stock_meta(sym)
 
         invested = buy_px * qty
@@ -231,10 +263,11 @@ async def add_holding(req: HoldingInput) -> PortfolioHolding:
     sym = req.symbol.upper().replace(".NS", "")
     buy_date = req.buy_date if req.buy_date else str(date.today())
 
-    resp = httpx.post(
+    row = await asyncio.to_thread(
+        _sb_post,
         _sb_url("portfolio_holdings"),
-        headers=_sb_headers("return=representation"),
-        json={
+        _sb_headers("return=representation"),
+        {
             "user_id": USER_ID,
             "symbol": sym,
             "quantity": req.quantity,
@@ -242,10 +275,7 @@ async def add_holding(req: HoldingInput) -> PortfolioHolding:
             "buy_date": buy_date,
             "notes": req.notes,
         },
-        timeout=10,
     )
-    resp.raise_for_status()
-    row = resp.json()[0]
 
     price, change = _get_latest_price(sym)
     name, sector = _get_stock_meta(sym)
@@ -264,10 +294,10 @@ async def add_holding(req: HoldingInput) -> PortfolioHolding:
 
 
 async def remove_holding(holding_id: int) -> bool:
-    resp = httpx.delete(
+    status = await asyncio.to_thread(
+        _sb_delete,
         _sb_url("portfolio_holdings"),
-        headers=_sb_headers(""),
-        params={"id": f"eq.{holding_id}", "user_id": f"eq.{USER_ID}"},
-        timeout=10,
+        _sb_headers(""),
+        {"id": f"eq.{holding_id}", "user_id": f"eq.{USER_ID}"},
     )
-    return resp.status_code in (200, 204)
+    return status in (200, 204)

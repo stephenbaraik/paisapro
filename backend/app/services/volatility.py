@@ -5,22 +5,20 @@ Provides: realized vol history, GARCH forecast, volatility cones,
 vol-regime classification, and low-vol entry signals.
 """
 
-import time
 import warnings
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone
 
-from .analytics import (
-    get_stock_universe, _get_cached_df, get_stock_name, get_stock_sector,
-)
+from .universe import get_symbols as get_stock_universe, get_name as get_stock_name, get_sector as get_stock_sector
+from .market_data import get_price_df as _get_cached_df
+from ..core.cache import cache
 from ..schemas.advanced_analytics import (
     VolatilityPoint, VolatilityConePoint, VolatilityForecastResponse, VolSymbol,
 )
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-_cache: dict[str, tuple[VolatilityForecastResponse, float]] = {}
 _CACHE_TTL = 3600
 
 
@@ -47,11 +45,10 @@ def _entry_signal(regime: str) -> str:
 
 
 async def get_volatility_forecast(symbol: str) -> VolatilityForecastResponse:
-    cache_key = symbol.upper()
-    if cache_key in _cache:
-        cached, ts = _cache[cache_key]
-        if time.time() - ts < _CACHE_TTL:
-            return cached
+    cache_key = f"vol:{symbol.upper()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     from arch import arch_model
 
@@ -173,7 +170,7 @@ async def get_volatility_forecast(symbol: str) -> VolatilityForecastResponse:
         garch_params=garch_params,
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
-    _cache[cache_key] = (result, time.time())
+    cache.set(cache_key, result, _CACHE_TTL)
     return result
 
 

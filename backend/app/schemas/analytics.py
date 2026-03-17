@@ -337,3 +337,61 @@ class TimeSeriesAnalysisResult(BaseModel):
     volatility_30d: float
     support_level: float
     resistance_level: float
+
+
+# ── MLOps / Model Health ──────────────────────────────────────────────────────
+
+class RegressionModelMetrics(BaseModel):
+    symbol: str
+    horizon_days: int
+    rf_r2: float
+    rf_dir_acc: float
+    rf_mae: float
+    ridge_r2: float
+    ridge_dir_acc: float
+    ridge_mae: float
+    gbm_r2: float
+    gbm_dir_acc: float
+    gbm_mae: float
+    best_model: str          # "rf" | "ridge" | "gbm"
+    from_pkl: bool           # True = loaded from disk, False = trained this session
+    evaluated_at: str
+
+
+class CacheStats(BaseModel):
+    total_entries: int
+    stock_dfs: int
+    analytics_entries: int
+    ml_regression_entries: int
+    ml_classifier_entries: int
+    macro_entries: int
+    news_entries: int
+    mlops_entries: int
+    other: int
+
+
+class PKLInventory(BaseModel):
+    rf_classifiers_today: int
+    regression_bundles_today: int
+    total_pkl_files: int
+    model_dir: str
+
+
+class ModelHealthResponse(BaseModel):
+    generated_at: str
+    # Regression ensemble metrics
+    regression_models_evaluated: int
+    regression_metrics: list[RegressionModelMetrics]
+    avg_rf_r2: float
+    avg_rf_dir_acc: float
+    avg_ridge_r2: float
+    avg_ridge_dir_acc: float
+    avg_gbm_r2: float
+    avg_gbm_dir_acc: float
+    # RF Classifier stats (from cached analytics report)
+    rf_classifiers_cached: int
+    signal_distribution: dict[str, int]   # {BUY: N, HOLD: N, SELL: N}
+    avg_rf_prob_up: float
+    # Infrastructure
+    cache: CacheStats
+    pkl: PKLInventory

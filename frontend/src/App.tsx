@@ -18,6 +18,7 @@ import RiskFactors from './pages/RiskFactors'
 import Portfolio from './pages/Portfolio'
 import NewsSentiment from './pages/NewsSentiment'
 import MLPrediction from './pages/MLPrediction'
+import ModelHealth from './pages/ModelHealth'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5 * 60 * 1000 } },
@@ -51,6 +52,7 @@ export default function App() {
                 <Route path="/portfolio" element={<Portfolio />} />
                 <Route path="/news" element={<NewsSentiment />} />
                 <Route path="/ml-prediction" element={<MLPrediction />} />
+                <Route path="/model-health" element={<ModelHealth />} />
               </Routes>
             </Layout>
           } />

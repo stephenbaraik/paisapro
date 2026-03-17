@@ -2,8 +2,11 @@
 Daily data refresh scheduler.
 
 Runs at 6 PM IST (12:30 UTC) on weekdays to:
-  1. Fetch today's prices for all tracked stocks via yfinance → Supabase
-  2. Clear the analytics in-memory cache so next request rebuilds with fresh data
+  1. Invalidate in-memory price cache
+  2. Re-fetch latest prices for all tracked stocks (yfinance → Supabase → cache)
+  3. Refresh macro indicators
+  4. Invalidate report + ML model caches
+  5. Pre-warm the report cache for next request
 """
 
 import logging
@@ -16,24 +19,30 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _daily_refresh():
-    """Fetch latest prices and invalidate analytics cache."""
+    """Invalidate all caches, re-fetch prices, rebuild report."""
     try:
-        from .services.analytics import (
-            get_stock_universe, _get_cached_df, _df_cache, _report_cache,
-            get_analytics_report,
-        )
+        from .core.cache import cache
+        from .services.universe import get_symbols
+        from .services.market_data import get_price_df, invalidate_all
+        from .services.ml.classifier import invalidate_all_models
+        from .services.analytics import get_analytics_report, REPORT_CACHE_KEY
 
-        universe = get_stock_universe()
-        logger.info("Daily refresh: fetching latest prices for %d stocks…", len(universe))
+        universe = get_symbols()
+        logger.info("Daily refresh: invalidating caches for %d stocks…", len(universe))
 
-        # 1. Clear the in-memory cache so _get_cached_df re-fetches from yfinance
-        _df_cache.clear()
+        # 1. Clear all price DataFrames so they're re-fetched from yfinance
+        invalidate_all()
 
-        # 2. Force-fetch fresh data for each stock (saves to Supabase automatically)
+        # 2. Clear per-stock ML models, report, and per-stock analysis caches
+        invalidate_all_models()
+        cache.invalidate(REPORT_CACHE_KEY)
+        cache.invalidate_prefix("analytics:stock:")
+
+        # 3. Re-fetch latest prices for each stock (writes back to Supabase)
         success = 0
         for sym in universe:
             try:
-                df = _get_cached_df(sym, "1y")
+                df = get_price_df(sym, "1y")
                 if df is not None and not df.empty:
                     success += 1
             except Exception as exc:
@@ -41,7 +50,7 @@ def _daily_refresh():
 
         logger.info("Daily refresh: %d/%d stocks updated.", success, len(universe))
 
-        # 3. Refresh macro data (yfinance → Supabase)
+        # 4. Refresh macro data
         try:
             from .services.macro import refresh_macro_data
             logger.info("Daily refresh: updating macro indicators…")
@@ -49,10 +58,6 @@ def _daily_refresh():
             logger.info("Daily refresh: %d macro tickers updated.", macro_count)
         except Exception as exc:
             logger.warning("Macro refresh failed: %s", exc)
-
-        # 4. Invalidate the report cache so next request rebuilds
-        import app.services.analytics as svc
-        svc._report_cache = (None, 0.0)
 
         # 5. Pre-warm the report cache
         logger.info("Daily refresh: rebuilding analytics report…")

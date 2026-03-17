@@ -31,12 +31,14 @@ from ..schemas.ml_regression import (
     ModelPrediction,
     MLPredictionResponse,
 )
-from .analytics import _get_cached_df, get_stock_name
+from .market_data import get_price_df as _get_cached_df
+from .universe import get_name as get_stock_name
+from .ml.model_store import save_regression_bundle, load_regression_bundle
 
 logger = logging.getLogger(__name__)
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
-_ml_cache: dict[str, tuple[MLPredictionResponse, float]] = {}
+from ..core.cache import cache as _cache_mgr
 _ML_CACHE_TTL = 3600  # 1 hour
 
 # Base technical features (available from analytics.py)
@@ -176,12 +178,141 @@ def _walk_forward_eval(
 
 # ── Main prediction function ─────────────────────────────────────────────────
 
+def _prepare_inference_inputs(df, horizon_days: int):
+    """
+    Given a feature-engineered df, return (current_price, x_latest_base,
+    x_latest_all, recent_trend) needed for inference. Returns None on failure.
+    """
+    df_feat = df.dropna(subset=_ALL_FEATURES)
+    if len(df_feat) < 80:
+        return None
+    current_price = float(df_feat["close"].iloc[-1])
+    x_latest_base = df_feat[_BASE_FEATURES].iloc[-1:].values.astype(float)
+    x_latest_all = df_feat[_ALL_FEATURES].iloc[-1:].values.astype(float)
+
+    bret_latest = df_feat["close"].pct_change(horizon_days)
+    recent_trend = float(
+        bret_latest.rolling(_DEMEAN_WINDOW, min_periods=min(15, _DEMEAN_WINDOW)).mean().iloc[-1]
+    )
+    if np.isnan(recent_trend):
+        recent_trend = 0.0
+    return current_price, x_latest_base, x_latest_all, recent_trend
+
+
+_MLOPS_TTL = 86400  # 24h — survive daily restarts
+
+
+def _record_mlops_metrics(symbol: str, horizon_days: int, bundle: dict, from_pkl: bool) -> None:
+    """Store eval metrics for the model-health dashboard."""
+    _cache_mgr.set(f"mlops:reg:{symbol}_{horizon_days}", {
+        "symbol": symbol,
+        "horizon_days": horizon_days,
+        "rf_r2": bundle["eval_rf"].r2,
+        "rf_dir_acc": bundle["eval_rf"].directional_accuracy,
+        "rf_mae": bundle["eval_rf"].mae,
+        "ridge_r2": bundle["eval_ridge"].r2,
+        "ridge_dir_acc": bundle["eval_ridge"].directional_accuracy,
+        "ridge_mae": bundle["eval_ridge"].mae,
+        "gbm_r2": bundle["eval_gbm"].r2,
+        "gbm_dir_acc": bundle["eval_gbm"].directional_accuracy,
+        "gbm_mae": bundle["eval_gbm"].mae,
+        "best_model": min(
+            {"rf": bundle["eval_rf"].cv_mae, "ridge": bundle["eval_ridge"].cv_mae,
+             "gbm": bundle["eval_gbm"].cv_mae},
+            key=lambda k: {"rf": bundle["eval_rf"].cv_mae, "ridge": bundle["eval_ridge"].cv_mae,
+                           "gbm": bundle["eval_gbm"].cv_mae}[k],
+        ),
+        "from_pkl": from_pkl,
+        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+    }, _MLOPS_TTL)
+
+
+def _build_result_from_bundle(
+    bundle: dict,
+    symbol: str,
+    horizon_days: int,
+    current_price: float,
+    x_latest_base,
+    x_latest_all,
+    recent_trend: float,
+    from_pkl: bool = False,
+) -> MLPredictionResponse:
+    """Run inference using pre-trained models from a PKL bundle."""
+    rf = bundle["rf"]
+    scaler_rf: StandardScaler = bundle["scaler_rf"]
+    ridge = bundle["ridge"]
+    scaler_ridge: RobustScaler = bundle["scaler_ridge"]
+    gbm = bundle["gbm"]
+    eval_rf: ModelEval = bundle["eval_rf"]
+    eval_ridge: ModelEval = bundle["eval_ridge"]
+    eval_gbm: ModelEval = bundle["eval_gbm"]
+
+    x_latest_rf = scaler_rf.transform(x_latest_base)
+    x_latest_ridge = np.clip(scaler_ridge.transform(x_latest_all), -3, 3)
+    x_latest_gbm = x_latest_rf
+
+    pred_rf    = float(rf.predict(x_latest_rf)[0]) + recent_trend
+    pred_ridge = float(ridge.predict(x_latest_ridge)[0]) + recent_trend
+    pred_gbm   = float(gbm.predict(x_latest_gbm)[0]) + recent_trend
+
+    w_rf  = max(eval_rf.r2, 0.01)
+    w_ri  = max(eval_ridge.r2, 0.01)
+    w_gb  = max(eval_gbm.r2, 0.01)
+    w_sum = w_rf + w_ri + w_gb
+    ensemble_return = (pred_rf * w_rf + pred_ridge * w_ri + pred_gbm * w_gb) / w_sum
+    ensemble_price  = round(current_price * (1 + ensemble_return), 2)
+
+    tree_preds = np.array([t.predict(x_latest_rf)[0] + recent_trend for t in rf.estimators_])
+    std_return = float(np.std(tree_preds))
+    ci_low  = round(current_price * (1 + ensemble_return - 1.28 * std_return), 2)
+    ci_high = round(current_price * (1 + ensemble_return + 1.28 * std_return), 2)
+
+    preds_array = np.array([pred_rf, pred_ridge, pred_gbm])
+    agreement_score = max(0.0, 100.0 - float(np.std(preds_array) * 1000))
+
+    cv_scores = {"rf": eval_rf.cv_mae, "ridge": eval_ridge.cv_mae, "gbm": eval_gbm.cv_mae}
+    best_model = min(cv_scores, key=cv_scores.get)
+
+    fi = rf.feature_importances_
+    feature_importances = sorted(
+        [FeatureImportance(feature=_BASE_LABELS[i], importance=round(float(fi[i]), 4))
+         for i in range(len(_BASE_FEATURES))],
+        key=lambda x: x.importance,
+        reverse=True,
+    )
+
+    def pct(v: float) -> float:
+        return round(v * 100, 3)
+
+    _record_mlops_metrics(symbol, horizon_days, bundle, from_pkl)
+
+    return MLPredictionResponse(
+        symbol=symbol,
+        company_name=get_stock_name(symbol),
+        current_price=round(current_price, 2),
+        horizon_days=horizon_days,
+        predictions={
+            "rf":    ModelPrediction(predicted_return=pct(pred_rf),    predicted_price=round(current_price * (1 + pred_rf), 2)),
+            "ridge": ModelPrediction(predicted_return=pct(pred_ridge),  predicted_price=round(current_price * (1 + pred_ridge), 2)),
+            "gbm":   ModelPrediction(predicted_return=pct(pred_gbm),   predicted_price=round(current_price * (1 + pred_gbm), 2)),
+        },
+        evaluations={"rf": eval_rf, "ridge": eval_ridge, "gbm": eval_gbm},
+        ensemble_return=pct(ensemble_return),
+        ensemble_price=ensemble_price,
+        ci_low=ci_low,
+        ci_high=ci_high,
+        model_agreement_score=round(agreement_score, 1),
+        feature_importances=feature_importances,
+        best_model=best_model,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
 def get_ml_prediction(symbol: str, horizon_days: int = 30) -> Optional[MLPredictionResponse]:
-    cache_key = f"{symbol}_{horizon_days}"
-    if cache_key in _ml_cache:
-        result, ts = _ml_cache[cache_key]
-        if time.time() - ts < _ML_CACHE_TTL:
-            return result
+    cache_key = f"ml:regression:{symbol}_{horizon_days}"
+    cached = _cache_mgr.get(cache_key)
+    if cached is not None:
+        return cached
 
     df = _get_cached_df(symbol, "2y")
     if df is None or len(df) < 120:
@@ -191,24 +322,30 @@ def get_ml_prediction(symbol: str, horizon_days: int = 30) -> Optional[MLPredict
     df = df.copy()
     df = _engineer_features(df)
 
-    # ── Current price & latest features (before target drops) ─────────────────
-    df_feat = df.dropna(subset=_ALL_FEATURES)
-    if len(df_feat) < 80:
+    inputs = _prepare_inference_inputs(df, horizon_days)
+    if inputs is None:
         return None
-    current_price = float(df_feat["close"].iloc[-1])
-    x_latest_base = df_feat[_BASE_FEATURES].iloc[-1:].values.astype(float)
-    x_latest_all = df_feat[_ALL_FEATURES].iloc[-1:].values.astype(float)
+    current_price, x_latest_base, x_latest_all, recent_trend = inputs
+
+    # ── Try loading today's trained bundle from disk (skip training) ──────────
+    bundle = load_regression_bundle(symbol, horizon_days)
+    if bundle is not None:
+        result = _build_result_from_bundle(
+            bundle, symbol, horizon_days,
+            current_price, x_latest_base, x_latest_all, recent_trend,
+            from_pkl=True,
+        )
+        _cache_mgr.set(cache_key, result, _ML_CACHE_TTL)
+        return result
+
+    # ── No bundle for today — train from scratch ──────────────────────────────
+    # ── Current price & latest features (before target drops) ─────────────────
+    x_latest_base = x_latest_base  # already computed above
+    x_latest_all = x_latest_all
 
     # ── Rolling trend (20-day window of backward horizon-returns) ─────────────
     bret = df["close"].pct_change(horizon_days)
     df["trend"] = bret.rolling(_DEMEAN_WINDOW, min_periods=min(15, _DEMEAN_WINDOW)).mean().fillna(0.0)
-
-    bret_latest = df_feat["close"].pct_change(horizon_days)
-    recent_trend = float(
-        bret_latest.rolling(_DEMEAN_WINDOW, min_periods=min(15, _DEMEAN_WINDOW)).mean().iloc[-1]
-    )
-    if np.isnan(recent_trend):
-        recent_trend = 0.0
 
     # ── Target: excess forward return ─────────────────────────────────────────
     df["target"] = df["close"].shift(-horizon_days) / df["close"] - 1 - df["trend"]
@@ -236,9 +373,6 @@ def get_ml_prediction(symbol: str, horizon_days: int = 30) -> Optional[MLPredict
             min_samples_leaf=20, subsample=0.7, random_state=42)
 
     # ── Walk-forward evaluation (per-model optimal pipeline) ──────────────────
-    # RF:    base features + StandardScaler (trees don't benefit from extras)
-    # Ridge: all features + RobustScaler + winsorize (linear model loves features)
-    # GBM:   base features + StandardScaler (stumps, avoid overfitting)
     eval_rf = _walk_forward_eval(
         make_rf, X_base, y, horizon_days,
         scaler_cls=StandardScaler, winsorize=False)
@@ -250,87 +384,34 @@ def get_ml_prediction(symbol: str, horizon_days: int = 30) -> Optional[MLPredict
         scaler_cls=StandardScaler, winsorize=False)
 
     # ── Fit final models on ALL labelled data ─────────────────────────────────
-    # RF pipeline (base features, StandardScaler)
     scaler_rf = StandardScaler()
     X_base_s = scaler_rf.fit_transform(X_base)
     x_latest_rf = scaler_rf.transform(x_latest_base)
 
-    # Ridge pipeline (all features, RobustScaler + winsorise)
     scaler_ridge = RobustScaler()
     X_all_s = scaler_ridge.fit_transform(X_all)
     X_all_s = np.clip(X_all_s, -3, 3)
     x_latest_ridge = np.clip(scaler_ridge.transform(x_latest_all), -3, 3)
 
-    # GBM pipeline (base features, StandardScaler — shared with RF)
-    x_latest_gbm = x_latest_rf  # same pipeline as RF
+    x_latest_gbm = x_latest_rf
 
     rf = make_rf();    rf.fit(X_base_s, y)
     ridge = make_ridge(); ridge.fit(X_all_s, y)
     gbm = make_gbm();  gbm.fit(X_base_s, y)
 
-    # ── Predict (excess return + trend = raw return) ──────────────────────────
-    pred_rf    = float(rf.predict(x_latest_rf)[0]) + recent_trend
-    pred_ridge = float(ridge.predict(x_latest_ridge)[0]) + recent_trend
-    pred_gbm   = float(gbm.predict(x_latest_gbm)[0]) + recent_trend
+    # ── Save bundle to disk so today's subsequent calls skip training ─────────
+    bundle = {
+        "rf": rf, "scaler_rf": scaler_rf,
+        "ridge": ridge, "scaler_ridge": scaler_ridge,
+        "gbm": gbm,
+        "eval_rf": eval_rf, "eval_ridge": eval_ridge, "eval_gbm": eval_gbm,
+    }
+    save_regression_bundle(symbol, horizon_days, bundle)
 
-    # ── R²-weighted ensemble (upweight models that performed better) ──────────
-    w_rf  = max(eval_rf.r2, 0.01)
-    w_ri  = max(eval_ridge.r2, 0.01)
-    w_gb  = max(eval_gbm.r2, 0.01)
-    w_sum = w_rf + w_ri + w_gb
-    ensemble_return = (pred_rf * w_rf + pred_ridge * w_ri + pred_gbm * w_gb) / w_sum
-    ensemble_price  = round(current_price * (1 + ensemble_return), 2)
-
-    # ── Confidence interval: RF tree variance (80% CI = ±1.28 std) ───────────
-    tree_preds = np.array([t.predict(x_latest_rf)[0] + recent_trend for t in rf.estimators_])
-    std_return = float(np.std(tree_preds))
-    ci_low  = round(current_price * (1 + ensemble_return - 1.28 * std_return), 2)
-    ci_high = round(current_price * (1 + ensemble_return + 1.28 * std_return), 2)
-
-    # ── Model agreement score (0=disagree, 100=fully agree) ──────────────────
-    preds_array = np.array([pred_rf, pred_ridge, pred_gbm])
-    agreement_score = max(0.0, 100.0 - float(np.std(preds_array) * 1000))
-
-    # ── Best model (lowest CV MAE) ────────────────────────────────────────────
-    cv_scores = {"rf": eval_rf.cv_mae, "ridge": eval_ridge.cv_mae, "gbm": eval_gbm.cv_mae}
-    best_model = min(cv_scores, key=cv_scores.get)
-
-    # ── Feature importances (from RF, on base features) ──────────────────────
-    fi = rf.feature_importances_
-    feature_importances = sorted(
-        [FeatureImportance(feature=_BASE_LABELS[i], importance=round(float(fi[i]), 4))
-         for i in range(len(_BASE_FEATURES))],
-        key=lambda x: x.importance,
-        reverse=True,
+    result = _build_result_from_bundle(
+        bundle, symbol, horizon_days,
+        current_price, x_latest_base, x_latest_all, recent_trend,
+        from_pkl=False,
     )
-
-    def pct(v: float) -> float:
-        return round(v * 100, 3)
-
-    result = MLPredictionResponse(
-        symbol=symbol,
-        company_name=get_stock_name(symbol),
-        current_price=round(current_price, 2),
-        horizon_days=horizon_days,
-        predictions={
-            "rf":    ModelPrediction(predicted_return=pct(pred_rf),    predicted_price=round(current_price * (1 + pred_rf), 2)),
-            "ridge": ModelPrediction(predicted_return=pct(pred_ridge),  predicted_price=round(current_price * (1 + pred_ridge), 2)),
-            "gbm":   ModelPrediction(predicted_return=pct(pred_gbm),   predicted_price=round(current_price * (1 + pred_gbm), 2)),
-        },
-        evaluations={
-            "rf":    eval_rf,
-            "ridge": eval_ridge,
-            "gbm":   eval_gbm,
-        },
-        ensemble_return=pct(ensemble_return),
-        ensemble_price=ensemble_price,
-        ci_low=ci_low,
-        ci_high=ci_high,
-        model_agreement_score=round(agreement_score, 1),
-        feature_importances=feature_importances,
-        best_model=best_model,
-        generated_at=datetime.now(timezone.utc).isoformat(),
-    )
-
-    _ml_cache[cache_key] = (result, time.time())
+    _cache_mgr.set(cache_key, result, _ML_CACHE_TTL)
     return result

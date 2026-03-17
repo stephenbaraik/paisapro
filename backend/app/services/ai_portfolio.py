@@ -19,9 +19,9 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 def _market_snapshot() -> str:
     """Build a concise market snapshot for the LLM from the analytics cache."""
     try:
-        from .analytics import _report_cache, _get_cached_df
+        from .analytics import get_cached_report, _get_cached_df
 
-        cached, _ = _report_cache
+        cached = get_cached_report()
         if cached is None:
             return "No market data available."
 

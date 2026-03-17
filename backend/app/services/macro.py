@@ -2,23 +2,21 @@
 Macro Dashboard — India VIX, USD/INR, Nifty 50, Gold, Crude Oil, Bank Nifty.
 
 Data pipeline:
-  1. yfinance → Supabase `macro_prices` table  (ingest, runs locally or on schedule)
-  2. Supabase → API response                   (serve, runs on HF Spaces)
-  3. yfinance direct as fallback                (if Supabase is empty)
-
-Scheduler refreshes daily at 6 PM IST alongside stock prices.
+  1. yfinance → Supabase macro_prices table  (ingest, runs locally or on schedule)
+  2. Supabase → API response                 (serve, works on HF Spaces)
+  3. yfinance direct as fallback             (if Supabase is empty)
 """
 
 import asyncio
 import logging
-import time
-import numpy as np
-import pandas as pd
-import httpx
-import yfinance as yf
 from datetime import datetime, timezone
 
-from ..core.config import get_settings
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+from ..core.cache import cache
+from ..data.macro_repository import get_macro_prices, save_macro_prices
 from ..schemas.advanced_analytics import (
     MacroIndicator, MacroTimeSeries, MacroTimeSeriesPoint,
     MacroCorrelation, MacroDashboardResponse,
@@ -26,105 +24,33 @@ from ..schemas.advanced_analytics import (
 
 logger = logging.getLogger(__name__)
 
-_cache: tuple[MacroDashboardResponse | None, float] = (None, 0.0)
-_CACHE_TTL = 1800  # 30 minutes
+_CACHE_KEY = "macro:dashboard"
+_CACHE_TTL = 1800   # 30 min
 
-
-# ── Ticker config ────────────────────────────────────────────────────────────
+# ── Ticker config ─────────────────────────────────────────────────────────────
 
 MACRO_TICKERS = {
-    "India VIX":   "^INDIAVIX",
-    "USD/INR":     "INR=X",
-    "Nifty 50":    "^NSEI",
-    "Gold (INR)":  "GC=F",
-    "Crude Oil":   "CL=F",
-    "Bank Nifty":  "^NSEBANK",
+    "India VIX":  "^INDIAVIX",
+    "USD/INR":    "INR=X",
+    "Nifty 50":   "^NSEI",
+    "Gold (INR)": "GC=F",
+    "Crude Oil":  "CL=F",
+    "Bank Nifty": "^NSEBANK",
 }
 
 DESCRIPTIONS = {
-    "India VIX":   "Volatility index — fear gauge for Indian markets",
-    "USD/INR":     "Dollar-Rupee exchange rate — rupee strength indicator",
-    "Nifty 50":    "Benchmark Indian equity index — 50 large caps",
-    "Gold (INR)":  "Gold futures — safe-haven proxy (USD, converted mentally)",
-    "Crude Oil":   "WTI crude oil — import cost driver for India",
-    "Bank Nifty":  "Banking sector index — financial sector health",
+    "India VIX":  "Volatility index — fear gauge for Indian markets",
+    "USD/INR":    "Dollar-Rupee exchange rate — rupee strength indicator",
+    "Nifty 50":   "Benchmark Indian equity index — 50 large caps",
+    "Gold (INR)": "Gold futures — safe-haven proxy (USD, converted mentally)",
+    "Crude Oil":  "WTI crude oil — import cost driver for India",
+    "Bank Nifty": "Banking sector index — financial sector health",
 }
 
 
-# ── Supabase helpers ─────────────────────────────────────────────────────────
-
-def _sb_headers() -> dict:
-    settings = get_settings()
-    return {
-        "apikey": settings.supabase_service_role_key,
-        "Authorization": f"Bearer {settings.supabase_service_role_key}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates",
-    }
-
-
-def _sb_url(table: str) -> str:
-    return f"{get_settings().supabase_url}/rest/v1/{table}"
-
-
-def _save_macro_to_supabase(ticker: str, df: pd.DataFrame) -> None:
-    """Upsert macro price rows to Supabase macro_prices table."""
-    rows = []
-    for _, row in df.iterrows():
-        rows.append({
-            "ticker": ticker,
-            "date": str(row["date"].date()),
-            "close": round(float(row["close"]), 4),
-        })
-
-    for i in range(0, len(rows), 500):
-        batch = rows[i:i + 500]
-        try:
-            resp = httpx.post(
-                _sb_url("macro_prices") + "?on_conflict=ticker,date",
-                headers=_sb_headers(), json=batch, timeout=30,
-            )
-            resp.raise_for_status()
-        except Exception as exc:
-            logger.warning("Supabase macro write failed for %s batch %d: %s", ticker, i, exc)
-
-    logger.info("Saved %d macro rows for %s to Supabase", len(rows), ticker)
-
-
-def _load_macro_from_supabase(ticker: str) -> pd.DataFrame:
-    """Load macro price history from Supabase (last 400 rows ≈ 1.5 years)."""
-    try:
-        resp = httpx.get(
-            _sb_url("macro_prices"),
-            headers=_sb_headers(),
-            params={
-                "ticker": f"eq.{ticker}",
-                "select": "date,close",
-                "order": "date.desc",
-                "limit": "400",
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        logger.warning("Supabase macro read failed for %s: %s", ticker, exc)
-        return pd.DataFrame()
-
-    if not data:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(data)
-    df["date"] = pd.to_datetime(df["date"])
-    df["close"] = pd.to_numeric(df["close"], errors="coerce")
-    df = df.sort_values("date").reset_index(drop=True)
-    return df
-
-
-# ── yfinance fetch ───────────────────────────────────────────────────────────
+# ── yfinance fetch ────────────────────────────────────────────────────────────
 
 def _batch_download(tickers: list[str], period: str = "1y") -> dict[str, pd.DataFrame]:
-    """Batch-download all tickers via yf.download."""
     result: dict[str, pd.DataFrame] = {}
     try:
         raw = yf.download(
@@ -153,13 +79,12 @@ def _batch_download(tickers: list[str], period: str = "1y") -> dict[str, pd.Data
     return result
 
 
-# ── Ingest pipeline (called by scheduler + manually) ────────────────────────
+# ── Ingest pipeline ───────────────────────────────────────────────────────────
 
 def refresh_macro_data() -> int:
     """
     Fetch macro data from yfinance and save to Supabase.
     Returns number of tickers successfully ingested.
-    Call this locally or from the scheduler — NOT from HF Spaces.
     """
     tickers = list(MACRO_TICKERS.values())
     ticker_dfs = _batch_download(tickers, "1y")
@@ -170,14 +95,17 @@ def refresh_macro_data() -> int:
         if df is None or len(df) < 5:
             logger.warning("Macro refresh: no data for %s (%s)", name, ticker)
             continue
-        _save_macro_to_supabase(ticker, df)
+        save_macro_prices(ticker, df)
         success += 1
+
+    # Invalidate cache so next request gets fresh data
+    cache.invalidate(_CACHE_KEY)
 
     logger.info("Macro refresh complete: %d/%d tickers ingested.", success, len(MACRO_TICKERS))
     return success
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Response builders ─────────────────────────────────────────────────────────
 
 def _trend(change_pct: float) -> str:
     if change_pct > 0.5:
@@ -188,7 +116,6 @@ def _trend(change_pct: float) -> str:
 
 
 def _determine_regime(indicators: list[MacroIndicator]) -> tuple[str, str]:
-    """Determine market regime from macro indicators."""
     vix_val = next((i for i in indicators if i.name == "India VIX"), None)
     nifty = next((i for i in indicators if i.name == "Nifty 50"), None)
     oil = next((i for i in indicators if i.name == "Crude Oil"), None)
@@ -215,9 +142,8 @@ def _determine_regime(indicators: list[MacroIndicator]) -> tuple[str, str]:
         else:
             risk_score -= 1
 
-    if oil:
-        if oil.change_pct > 5:
-            risk_score -= 1
+    if oil and oil.change_pct > 5:
+        risk_score -= 1
 
     if risk_score >= 2:
         return "RISK_ON", "Macro conditions favor equities — low VIX, positive market momentum. Consider increasing equity allocation."
@@ -226,10 +152,7 @@ def _determine_regime(indicators: list[MacroIndicator]) -> tuple[str, str]:
     return "NEUTRAL", "Mixed signals — VIX and market trends are not strongly directional. Maintain balanced allocation."
 
 
-# ── Build response from DataFrames ──────────────────────────────────────────
-
 def _build_response(ticker_dfs: dict[str, pd.DataFrame]) -> MacroDashboardResponse:
-    """Build the API response from a dict of ticker → DataFrame."""
     indicators: list[MacroIndicator] = []
     all_series: list[MacroTimeSeries] = []
     returns_dict: dict[str, pd.Series] = {}
@@ -252,10 +175,7 @@ def _build_response(ticker_dfs: dict[str, pd.DataFrame]) -> MacroDashboardRespon
         ))
 
         ts_points = [
-            MacroTimeSeriesPoint(
-                date=row["date"].strftime("%Y-%m-%d"),
-                value=round(float(row["close"]), 2),
-            )
+            MacroTimeSeriesPoint(date=row["date"].strftime("%Y-%m-%d"), value=round(float(row["close"]), 2))
             for _, row in df.iterrows()
         ]
         all_series.append(MacroTimeSeries(name=name, data=ts_points))
@@ -264,7 +184,6 @@ def _build_response(ticker_dfs: dict[str, pd.DataFrame]) -> MacroDashboardRespon
         ret.name = name
         returns_dict[name] = ret
 
-    # Correlations
     correlations: list[MacroCorrelation] = []
     corr_names = list(returns_dict.keys())
     if len(corr_names) >= 2:
@@ -291,41 +210,39 @@ def _build_response(ticker_dfs: dict[str, pd.DataFrame]) -> MacroDashboardRespon
     )
 
 
-# ── Main API function ───────────────────────────────────────────────────────
+# ── Main API function ─────────────────────────────────────────────────────────
 
 async def get_macro_dashboard(force: bool = False) -> MacroDashboardResponse:
-    global _cache
-    cached, ts = _cache
-    if cached and not force and time.time() - ts < _CACHE_TTL:
-        return cached
+    if not force:
+        cached = cache.get(_CACHE_KEY)
+        if cached is not None:
+            return cached
+
+    tickers = list(MACRO_TICKERS.values())
+    ticker_dfs: dict[str, pd.DataFrame] = {}
 
     # 1. Try Supabase first (works on HF Spaces where yfinance is blocked)
-    ticker_dfs: dict[str, pd.DataFrame] = {}
-    tickers = list(MACRO_TICKERS.values())
-
     supabase_dfs = await asyncio.to_thread(
-        lambda: {t: _load_macro_from_supabase(t) for t in tickers}
+        lambda: {t: get_macro_prices(t) for t in tickers}
     )
     for ticker, df in supabase_dfs.items():
         if not df.empty and len(df) >= 5:
             ticker_dfs[ticker] = df
 
-    # 2. If Supabase has data for most tickers, use it
     if len(ticker_dfs) >= 3:
         logger.info("Macro: serving %d/%d tickers from Supabase", len(ticker_dfs), len(tickers))
     else:
-        # 3. Fallback: try yfinance directly (works locally, may fail on cloud)
+        # 2. Fallback: yfinance (works locally, may fail on cloud)
         logger.info("Macro: Supabase has %d tickers, trying yfinance fallback…", len(ticker_dfs))
         yf_dfs = await asyncio.to_thread(_batch_download, tickers, "1y")
         for ticker, df in yf_dfs.items():
             if ticker not in ticker_dfs:
                 ticker_dfs[ticker] = df
-            # Save to Supabase for next time
         if yf_dfs:
             await asyncio.to_thread(
-                lambda: [_save_macro_to_supabase(t, df) for t, df in yf_dfs.items()]
+                lambda: [save_macro_prices(t, df) for t, df in yf_dfs.items()]
             )
 
     result = _build_response(ticker_dfs)
-    _cache = (result, time.time())
+    cache.set(_CACHE_KEY, result, _CACHE_TTL)
     return result

@@ -607,6 +607,61 @@ export interface MLPredictionResponse {
   generated_at: string
 }
 
+// ── MLOps / Model Health ─────────────────────────────────────────────────────
+
+export interface RegressionModelMetrics {
+  symbol: string
+  horizon_days: number
+  rf_r2: number
+  rf_dir_acc: number
+  rf_mae: number
+  ridge_r2: number
+  ridge_dir_acc: number
+  ridge_mae: number
+  gbm_r2: number
+  gbm_dir_acc: number
+  gbm_mae: number
+  best_model: string
+  from_pkl: boolean
+  evaluated_at: string
+}
+
+export interface CacheStats {
+  total_entries: number
+  stock_dfs: number
+  analytics_entries: number
+  ml_regression_entries: number
+  ml_classifier_entries: number
+  macro_entries: number
+  news_entries: number
+  mlops_entries: number
+  other: number
+}
+
+export interface PKLInventory {
+  rf_classifiers_today: number
+  regression_bundles_today: number
+  total_pkl_files: number
+  model_dir: string
+}
+
+export interface ModelHealthResponse {
+  generated_at: string
+  regression_models_evaluated: number
+  regression_metrics: RegressionModelMetrics[]
+  avg_rf_r2: number
+  avg_rf_dir_acc: number
+  avg_ridge_r2: number
+  avg_ridge_dir_acc: number
+  avg_gbm_r2: number
+  avg_gbm_dir_acc: number
+  rf_classifiers_cached: number
+  signal_distribution: Record<string, number>
+  avg_rf_prob_up: number
+  cache: CacheStats
+  pkl: PKLInventory
+}
+
 // ── News Sentiment ──────────────────────────────────────────────────────────
 
 export interface NewsArticle {

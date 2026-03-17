@@ -1,13 +1,12 @@
-import time
 import logging
 from fastapi import APIRouter, Query, HTTPException
 from ...core.database import get_db
+from ...core.cache import cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
-# ─── Live indices cache ──────────────────────────────────────────────────────
-_indices_cache: tuple[list[dict], float] = ([], 0.0)
+_INDICES_CACHE_KEY = "indices:summary"
 _INDICES_TTL = 300  # 5 minutes
 
 
@@ -85,9 +84,8 @@ def get_stock_history(
 @router.get("/indices/summary")
 def get_indices_summary():
     """Get current values for major Indian indices (Nifty 50, Sensex, Bank Nifty)."""
-    global _indices_cache
-    cached, ts = _indices_cache
-    if cached and time.time() - ts < _INDICES_TTL:
+    cached = cache.get(_INDICES_CACHE_KEY)
+    if cached is not None:
         return cached
 
     import yfinance as yf
@@ -119,7 +117,7 @@ def get_indices_summary():
         except Exception as exc:
             logger.warning("Failed to fetch index %s: %s", symbol, exc)
 
-    _indices_cache = (results, time.time())
+    cache.set(_INDICES_CACHE_KEY, results, _INDICES_TTL)
     return results
 
 
