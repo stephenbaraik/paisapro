@@ -187,7 +187,7 @@ export default function ModelHealth() {
                       {signalData.map((s, i) => <Cell key={i} fill={s.color} />)}
                     </Bar>
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v: number) => [v, 'stocks']} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11 }} />
+                    <Tooltip formatter={(v) => [v, 'stocks']} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11 }} />
                   </BarChart>
                 </ResponsiveContainer>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -227,7 +227,7 @@ export default function ModelHealth() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v: number) => [v, 'entries']} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11 }} />
+                  <Tooltip formatter={(v) => [v, 'entries']} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                     {cacheBreakdown.map((c, i) => <Cell key={i} fill={c.color} />)}
                   </Bar>
