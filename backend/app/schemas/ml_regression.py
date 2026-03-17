@@ -15,6 +15,7 @@ class ModelEval(BaseModel):
     r2: float                    # Coefficient of determination
     directional_accuracy: float  # % of correct up/down predictions
     cv_mae: float                # Time-series cross-validated MAE
+    sharpe_ratio: float = 0.0    # Annualised Sharpe of signal strategy (sign(pred) * actual return)
 
 
 class ModelPrediction(BaseModel):

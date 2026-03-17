@@ -10,9 +10,9 @@ import { getMLPrediction, getTimeSeriesSymbols } from '../api/client'
 import type { MLPredictionResponse } from '../types'
 
 const MODEL_META: Record<string, { label: string; color: string; desc: string }> = {
-  rf:    { label: 'Random Forest',      color: '#7C3AED', desc: 'Ensemble of 200 trees, handles non-linear patterns' },
-  ridge: { label: 'Ridge Regression',   color: '#06B6D4', desc: 'Regularised linear model — fast & interpretable' },
-  gbm:   { label: 'Gradient Boosting',  color: '#F59E0B', desc: 'Sequential boosting — typically highest accuracy' },
+  rf:    { label: 'Random Forest',         color: '#7C3AED', desc: '200 trees, max_features=√n — decorrelated ensemble' },
+  ridge: { label: 'ElasticNet (L1+L2)',    color: '#06B6D4', desc: 'Sparse linear model — handles correlated OHLC features' },
+  gbm:   { label: 'HistGradientBoosting',  color: '#F59E0B', desc: 'Fast GBM with early stopping — LightGBM-style' },
 }
 
 function ReturnBadge({ value }: { value: number }) {
@@ -187,11 +187,11 @@ export default function MLPrediction() {
                   </div>
 
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Model Evaluation</div>
+                  <MetricRow label="Signal Sharpe" value={ev.sharpe_ratio.toFixed(2)} sub="Annualised (> 0.5 = good)" good={ev.sharpe_ratio > 0.5} />
+                  <MetricRow label="Dir. Accuracy" value={`${ev.directional_accuracy.toFixed(1)}%`} sub="Up/down correct" good={ev.directional_accuracy > 55} />
+                  <MetricRow label="R²"   value={ev.r2.toFixed(3)}          sub="Variance explained" good={ev.r2 > 0.05} />
                   <MetricRow label="MAE"  value={`${ev.mae.toFixed(3)}%`}  sub="Mean Absolute Error" good={ev.mae < 2} />
                   <MetricRow label="RMSE" value={`${ev.rmse.toFixed(3)}%`} sub="Root Mean Square Error" good={ev.rmse < 3} />
-                  <MetricRow label="R²"   value={ev.r2.toFixed(3)}          sub="Variance explained" good={ev.r2 > 0.1} />
-                  <MetricRow label="Dir. Accuracy" value={`${ev.directional_accuracy.toFixed(1)}%`} sub="Up/down correct" good={ev.directional_accuracy > 55} />
-                  <MetricRow label="CV MAE" value={`${ev.cv_mae.toFixed(3)}%`} sub="5-fold time-series CV" good={ev.cv_mae < 2.5} />
                 </div>
               )
             })}
@@ -225,6 +225,7 @@ export default function MLPrediction() {
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 16 }}>Model Comparison Radar</div>
               <ResponsiveContainer width="100%" height={260}>
                 <RadarChart data={[
+                  { metric: 'Signal Sharpe', rf: Math.max(0, d.evaluations.rf.sharpe_ratio * 20), ridge: Math.max(0, d.evaluations.ridge.sharpe_ratio * 20), gbm: Math.max(0, d.evaluations.gbm.sharpe_ratio * 20) },
                   { metric: 'Dir. Accuracy', rf: d.evaluations.rf.directional_accuracy, ridge: d.evaluations.ridge.directional_accuracy, gbm: d.evaluations.gbm.directional_accuracy },
                   { metric: 'R²×100', rf: Math.max(0, d.evaluations.rf.r2 * 100), ridge: Math.max(0, d.evaluations.ridge.r2 * 100), gbm: Math.max(0, d.evaluations.gbm.r2 * 100) },
                   { metric: 'Low CV-MAE', rf: Math.max(0, 5 - d.evaluations.rf.cv_mae), ridge: Math.max(0, 5 - d.evaluations.ridge.cv_mae), gbm: Math.max(0, 5 - d.evaluations.gbm.cv_mae) },
