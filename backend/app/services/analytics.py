@@ -151,7 +151,8 @@ def get_analytics_report(force_refresh: bool = False) -> AnalyticsReport:
 
         universe = get_stock_universe()
         logger.info("Building full analytics report for %d stocks…", len(universe))
-    nifty_df = get_nifty_df("1y") or pd.DataFrame()
+    _nifty_raw = get_nifty_df("1y")
+    nifty_df = _nifty_raw if _nifty_raw is not None else pd.DataFrame()
 
     results: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=10) as pool:
@@ -362,7 +363,8 @@ def screen_stocks(
                 logger.warning("Screener (cached) failed for %s: %s", cached.get("symbol", "?"), exc)
     else:
         # Slow path: compute on first load before report is built
-        nifty_df = get_nifty_df("1y") or pd.DataFrame()
+        _nifty_raw = get_nifty_df("1y")
+        nifty_df = _nifty_raw if _nifty_raw is not None else pd.DataFrame()
         for sym in get_stock_universe():
             try:
                 df = _get_cached_df(sym, "1y")
