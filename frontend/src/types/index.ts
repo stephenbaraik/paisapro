@@ -583,6 +583,7 @@ export interface ModelEval {
   r2: number
   directional_accuracy: number
   cv_mae: number
+  sharpe_ratio: number
 }
 
 export interface ModelPrediction {
@@ -621,6 +622,9 @@ export interface RegressionModelMetrics {
   gbm_r2: number
   gbm_dir_acc: number
   gbm_mae: number
+  rf_sharpe?: number
+  ridge_sharpe?: number
+  gbm_sharpe?: number
   best_model: string
   from_pkl: boolean
   evaluated_at: string
