@@ -30,6 +30,7 @@ import type {
   NewsSentimentResponse,
   AIBuildResponse,
   MLPredictionResponse,
+  ModelHealthResponse,
 } from '../types'
 
 const BASE = import.meta.env.VITE_API_URL || ''
@@ -216,3 +217,7 @@ export const getNewsSentiment = (force = false): Promise<NewsSentimentResponse> 
 // -- ML Regression Predictions
 export const getMLPrediction = (symbol: string, horizon = 30): Promise<MLPredictionResponse> =>
   api.get(`/advanced/ml-prediction/${symbol}`, { params: { horizon } }).then(r => r.data)
+
+// ── MLOps / Model Health ──────────────────────────────────────────────────────
+export const getModelHealth = (): Promise<ModelHealthResponse> =>
+  api.get('/analytics/model-health').then(r => r.data)

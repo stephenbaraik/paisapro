@@ -10,15 +10,14 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timezone
 
-from .analytics import (
-    get_stock_universe, _get_cached_df, get_stock_sector, get_stock_name,
-    NIFTY_INDEX,
-)
+from .universe import get_symbols as get_stock_universe, get_sector as get_stock_sector, get_name as get_stock_name, NIFTY_INDEX
+from .market_data import get_price_df as _get_cached_df
 from ..schemas.advanced_analytics import (
     SectorMomentum, SectorRotationHistory, SectorRotationResponse,
 )
 
-_cache: tuple[SectorRotationResponse | None, float] = (None, 0.0)
+from ..core.cache import cache as _cache_mgr
+_CACHE_KEY = "sector:rotation"
 _CACHE_TTL = 3600  # 1 hour
 
 
@@ -56,10 +55,10 @@ def _determine_market_phase(sectors: list[SectorMomentum]) -> str:
 
 
 async def get_sector_rotation(force: bool = False) -> SectorRotationResponse:
-    global _cache
-    cached, ts = _cache
-    if cached and not force and time.time() - ts < _CACHE_TTL:
-        return cached
+    if not force:
+        cached = _cache_mgr.get(_CACHE_KEY)
+        if cached is not None:
+            return cached
 
     universe = get_stock_universe()
     nifty_df = _get_cached_df(NIFTY_INDEX, "2y")
@@ -163,5 +162,5 @@ async def get_sector_rotation(force: bool = False) -> SectorRotationResponse:
         market_phase=phase,
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
-    _cache = (result, time.time())
+    _cache_mgr.set(_CACHE_KEY, result, _CACHE_TTL)
     return result

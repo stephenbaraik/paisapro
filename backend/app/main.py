@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from .core.config import get_settings
 from .api.routes import planner, advisor, stocks, analytics, advanced_analytics, portfolio
 
@@ -51,6 +52,7 @@ _origins = [settings.frontend_url, "http://localhost:5173", "https://paisapro.ne
 if settings.app_env == "production":
     _origins.append("https://huggingface.co")
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,

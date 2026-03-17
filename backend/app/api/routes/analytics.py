@@ -16,6 +16,10 @@ from ...schemas.analytics import (
     SmartPortfolioRequest,
     SmartPortfolioResponse,
     TimeSeriesAnalysisResult,
+    ModelHealthResponse,
+    RegressionModelMetrics,
+    CacheStats,
+    PKLInventory,
 )
 from ...services import analytics as svc
 from ...services import timeseries as ts_svc
@@ -136,5 +140,91 @@ def timeseries_analysis(symbol: str, horizon: int = Query(30, ge=7, le=90)):
 def timeseries_symbols():
     """Return list of symbols available for time-series analysis."""
     return ts_svc.get_available_symbols()
+
+
+@router.get("/model-health", response_model=ModelHealthResponse)
+def model_health():
+    """MLOps dashboard: regression model eval metrics, RF classifier stats, cache & PKL inventory."""
+    from datetime import datetime, timezone
+    from pathlib import Path
+    import os
+    from ...core.cache import cache
+    from ...services.ml.model_store import MODEL_DIR
+
+    # ── Regression metrics ────────────────────────────────────────────────────
+    reg_keys = cache.keys_with_prefix("mlops:reg:")
+    raw_metrics = [cache.get(k) for k in reg_keys]
+    raw_metrics = [m for m in raw_metrics if m is not None]
+
+    regression_metrics = [
+        RegressionModelMetrics(**m) for m in raw_metrics
+    ]
+
+    def _avg(lst, attr):
+        vals = [getattr(m, attr) for m in regression_metrics]
+        return round(sum(vals) / len(vals), 4) if vals else 0.0
+
+    # ── RF Classifier stats (from cached analytics report) ────────────────────
+    report = svc.get_cached_report()
+    rf_classifiers_cached = 0
+    signal_dist: dict[str, int] = {"BUY": 0, "HOLD": 0, "SELL": 0}
+    prob_up_sum = 0.0
+
+    if report:
+        rf_classifiers_cached = len(report.stock_analyses)
+        for sa in report.stock_analyses:
+            sig = sa.rf_signal.value if hasattr(sa.rf_signal, "value") else str(sa.rf_signal)
+            signal_dist[sig] = signal_dist.get(sig, 0) + 1
+            prob_up_sum += sa.rf_probability
+    avg_rf_prob_up = round(prob_up_sum / rf_classifiers_cached, 3) if rf_classifiers_cached else 0.0
+
+    # ── Cache stats ────────────────────────────────────────────────────────────
+    all_keys = cache.keys_with_prefix("")
+    cs = CacheStats(
+        total_entries=len(all_keys),
+        stock_dfs=len([k for k in all_keys if k.startswith("stock:df:")]),
+        analytics_entries=len([k for k in all_keys if k.startswith("analytics:")]),
+        ml_regression_entries=len([k for k in all_keys if k.startswith("ml:regression:")]),
+        ml_classifier_entries=len([k for k in all_keys if k.startswith("ml:rf:")]),
+        macro_entries=len([k for k in all_keys if k.startswith("macro:")]),
+        news_entries=len([k for k in all_keys if k.startswith("news:")]),
+        mlops_entries=len([k for k in all_keys if k.startswith("mlops:")]),
+        other=len([k for k in all_keys if not any(
+            k.startswith(p) for p in
+            ("stock:df:", "analytics:", "ml:regression:", "ml:rf:", "macro:", "news:", "mlops:")
+        )]),
+    )
+
+    # ── PKL inventory ─────────────────────────────────────────────────────────
+    rf_count = reg_count = total = 0
+    if MODEL_DIR.exists():
+        pkls = list(MODEL_DIR.glob("*.pkl"))
+        total = len(pkls)
+        rf_count = sum(1 for f in pkls if f.name.startswith("rf_"))
+        reg_count = sum(1 for f in pkls if f.name.startswith("reg_"))
+
+    pkl = PKLInventory(
+        rf_classifiers_today=rf_count,
+        regression_bundles_today=reg_count,
+        total_pkl_files=total,
+        model_dir=str(MODEL_DIR),
+    )
+
+    return ModelHealthResponse(
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        regression_models_evaluated=len(regression_metrics),
+        regression_metrics=sorted(regression_metrics, key=lambda m: m.rf_dir_acc, reverse=True),
+        avg_rf_r2=_avg(regression_metrics, "rf_r2"),
+        avg_rf_dir_acc=_avg(regression_metrics, "rf_dir_acc"),
+        avg_ridge_r2=_avg(regression_metrics, "ridge_r2"),
+        avg_ridge_dir_acc=_avg(regression_metrics, "ridge_dir_acc"),
+        avg_gbm_r2=_avg(regression_metrics, "gbm_r2"),
+        avg_gbm_dir_acc=_avg(regression_metrics, "gbm_dir_acc"),
+        rf_classifiers_cached=rf_classifiers_cached,
+        signal_distribution=signal_dist,
+        avg_rf_prob_up=avg_rf_prob_up,
+        cache=cs,
+        pkl=pkl,
+    )
 
 

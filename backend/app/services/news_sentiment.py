@@ -6,19 +6,20 @@ scores sentiment using a keyword-based approach, and aggregates by stock.
 """
 
 import re
-import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import quote
 
 import httpx
 
 from .analytics import get_stock_universe, get_stock_name, get_stock_sector
+from ..core.cache import cache
 from ..schemas.portfolio import (
     NewsArticle, SentimentSummary, NewsSentimentResponse,
 )
 
-_cache: tuple[NewsSentimentResponse | None, float] = (None, 0.0)
+_CACHE_KEY = "news:sentiment"
 _CACHE_TTL = 1800  # 30 minutes
 
 # ── Sentiment keyword lists ──────────────────────────────────────────────────
@@ -144,10 +145,10 @@ def _fetch_google_news_rss(query: str, num: int = 15) -> list[dict]:
 
 
 async def get_news_sentiment(force: bool = False) -> NewsSentimentResponse:
-    global _cache
-    cached, ts = _cache
-    if cached and not force and time.time() - ts < _CACHE_TTL:
-        return cached
+    if not force:
+        cached = cache.get(_CACHE_KEY)
+        if cached is not None:
+            return cached
 
     all_articles: list[NewsArticle] = []
     seen_titles: set[str] = set()
@@ -163,8 +164,14 @@ async def get_news_sentiment(force: bool = False) -> NewsSentimentResponse:
         aliases = SYMBOL_ALIASES.get(sym, [sym.lower()])
         queries.append(f"{aliases[0]} stock NSE")
 
-    for query in queries:
-        raw_articles = _fetch_google_news_rss(query, num=10)
+    # Fetch all queries in parallel (was sequential — 13 × 10s = up to 130s worst case)
+    raw_by_query: list[list[dict]] = [[] for _ in queries]
+    with ThreadPoolExecutor(max_workers=13) as pool:
+        futures = {pool.submit(_fetch_google_news_rss, q, 10): i for i, q in enumerate(queries)}
+        for fut in as_completed(futures):
+            raw_by_query[futures[fut]] = fut.result()
+
+    for raw_articles in raw_by_query:
         for art in raw_articles:
             title = art["title"]
             if title in seen_titles:
@@ -238,5 +245,5 @@ async def get_news_sentiment(force: bool = False) -> NewsSentimentResponse:
         overall_score=round(overall_score, 3),
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
-    _cache = (result, time.time())
+    cache.set(_CACHE_KEY, result, _CACHE_TTL)
     return result

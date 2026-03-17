@@ -54,8 +54,8 @@ User Financial Profile:
 def _market_context() -> str:
     """Inject live market intelligence from the analytics cache into the advisor."""
     try:
-        from .analytics import get_market_overview, _report_cache
-        cached, _ = _report_cache
+        from .analytics import get_market_overview, get_cached_report
+        cached = get_cached_report()
         if cached is None:
             return ""
 
