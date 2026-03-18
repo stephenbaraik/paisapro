@@ -5,6 +5,8 @@ import type {
   GoalPlannerResponse,
   AdvisorChatResponse,
   ChatMessage,
+  PortfolioHoldingContext,
+  WatchlistItemContext,
   Stock,
   MarketIndex,
   MarketOverview,
@@ -59,11 +61,19 @@ export const sendAdvisorMessage = (params: {
   message: string
   profile?: UserFinancialProfile
   conversation_history?: ChatMessage[]
+  portfolio_holdings?: PortfolioHoldingContext[]
+  watchlist?: WatchlistItemContext[]
 }): Promise<AdvisorChatResponse> =>
   api.post('/advisor/chat', params).then(r => r.data)
 
 export async function streamAdvisorMessage(
-  params: { message: string; profile?: UserFinancialProfile; conversation_history?: ChatMessage[] },
+  params: {
+    message: string
+    profile?: UserFinancialProfile
+    conversation_history?: ChatMessage[]
+    portfolio_holdings?: PortfolioHoldingContext[]
+    watchlist?: WatchlistItemContext[]
+  },
   onToken: (token: string) => void,
   onDone: () => void,
   onError: (msg: string) => void,
