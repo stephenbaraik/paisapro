@@ -9,79 +9,119 @@ app_port: 7860
 
 <div align="center">
 
-# <img src="https://img.icons8.com/fluency/48/rupee.png" width="36" align="center" /> PaisaPro.ai
+<br />
 
-### AI-Powered Investment Advisory Platform for the Indian Equity Market
+```
+██████╗  █████╗ ██╗███████╗ █████╗ ██████╗ ██████╗  ██████╗
+██╔══██╗██╔══██╗██║██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔═══██╗
+██████╔╝███████║██║███████╗███████║██████╔╝██████╔╝██║   ██║
+██╔═══╝ ██╔══██║██║╚════██║██╔══██║██╔═══╝ ██╔══██╗██║   ██║
+██║     ██║  ██║██║███████║██║  ██║██║     ██║  ██║╚██████╔╝
+╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝
+```
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-paisapro.netlify.app-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)](https://paisapro.netlify.app)
-[![Backend API](https://img.shields.io/badge/API-HuggingFace_Spaces-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://stephenbaraik-paisapro.hf.space/health)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+### ◈ Institutional-grade quantitative finance. For everyone. ◈
 
 <br />
 
-*Institutional-grade analytics meets AI — built for Indian retail investors.*
+[![Live Demo](https://img.shields.io/badge/◉_LIVE-paisapro.netlify.app-00C7B7?style=for-the-badge&logoColor=white)](https://paisapro.netlify.app)
+[![Backend API](https://img.shields.io/badge/⚡_API-HuggingFace_Spaces-FFD21E?style=for-the-badge&logoColor=black)](https://stephenbaraik-paisapro.hf.space/health)
 
-*ARIMA forecasting · GARCH volatility · Fama-French factors · Monte Carlo simulations · LLM advisory*
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036?style=for-the-badge&logoColor=white)](https://groq.com)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+
+<br />
+
+> *Hedge-fund-level analytics. Agentic AI advisory. Real-time Indian equity intelligence.*
+> *ARIMA · GARCH · Fama-French · Monte Carlo · Random Forest · GARCH · Llama 3.3 70B*
+
+<br />
+
+</div>
+
+---
+
+## ◈ What is PaisaPro?
+
+PaisaPro brings **institutional-grade quantitative finance** to Indian retail investors — the kind of analytics that typically lives behind Bloomberg terminals and quant desks, now accessible through a clean, real-time web application.
+
+The platform combines **classical econometrics** (ARIMA, GARCH, Fama-French 4-factor), **machine learning** (Random Forest, Gradient Boosting, Isolation Forest, K-Means), and an **agentic LLM advisor** (Llama 3.3 70B with live tool-use) — fully integrated, no PhD required.
 
 <br />
 
 ---
 
-</div>
-
-<br />
-
-## What is PaisaPro.ai?
-
-PaisaPro.ai brings **hedge-fund-level quantitative analytics** to everyday Indian investors. It combines classical econometric models (ARIMA, GARCH, Fama-French), machine learning (Random Forest, Isolation Forest, K-Means), and a conversational AI advisor (Llama 3.3 70B) — all in one beautiful, real-time web application.
-
-> **No PhD required.** The platform automates stationarity testing, model selection, risk decomposition, and portfolio optimization — so you get the insights without the complexity.
-
-<br />
-
-## Key Features
+## ◈ Feature Matrix
 
 <table>
 <tr>
-<td width="50%">
+<td width="50%" valign="top">
 
-### Analytics & Forecasting
-- **Time-Series Forecasting** — ARIMA (auto-differencing via ADF), Exponential Smoothing, Linear Trend with 30-day ahead predictions and 95% confidence intervals
-- **Volatility Modelling** — GARCH(1,1) with regime detection (LOW/NORMAL/HIGH/EXTREME) and volatility cone term-structure
-- **Technical Analysis** — 7 indicators (RSI, MACD, Bollinger, ATR, ADX, VWAP, OBV) synthesized into weighted composite BUY/HOLD/SELL signals
-- **Risk Factor Decomposition** — Fama-French 4-factor model (Market, Size, Value, Momentum) with alpha, R-squared, and factor contribution analysis
+### ⚡ Agentic AI Advisor
+- **Llama 3.3 70B** via Groq with SSE streaming
+- **Live tool-use** — LLM calls 4 real-time tools mid-conversation: `get_stock_analysis`, `get_macro_dashboard`, `get_news_sentiment`, `run_screener`
+- **Portfolio context injection** — your holdings and watchlist fed directly into the system prompt
+- **Market intelligence injection** — live signals, anomalies, sector data, macro regime
+- Multi-turn tool loop (up to 3 rounds) with graceful fallback
+- 30-message conversation history window
 
 </td>
-<td width="50%">
+<td width="50%" valign="top">
 
-### Intelligence & Planning
-- **AI Financial Advisor** — Streaming chat powered by Llama 3.3 70B with live market context injection (signals, anomalies, sector data)
-- **AI Portfolio Builder** — LLM-powered stock selection with budget capping, diversification constraints, and post-processing guardrails
-- **Monte Carlo Wealth Planner** — 1,000 simulations with SIP step-up for probabilistic wealth projection (P10–P90 bands)
-- **Goal-Based Planning** — Reverse-solve for required monthly SIP with sensitivity analysis at ±2%/±4% return scenarios
+### 📊 ML Regression Engine
+- **Ridge, Random Forest, Gradient Boosting** — 3-model ensemble with cross-validated RMSE
+- **Feature engineering** — 20+ OHLCV-aware features: returns, log-price, RSI, MACD, rolling stats, lag features
+- **Walk-forward evaluation** — train on 80%, test on 20% with time-series splits
+- **MLOps Dashboard** — per-model RMSE, MAE, R², train/test scores, feature importance
+- 30-day forward price forecasting with confidence intervals
 
 </td>
 </tr>
 <tr>
-<td width="50%">
+<td width="50%" valign="top">
 
-### Market Intelligence
-- **Stock Screener** — Filter by signal, sector, Sharpe ratio, max drawdown with composite scoring
-- **Sector Rotation** — Multi-horizon momentum (1M/3M/6M/12M) with market phase classification (EXPANSION/PEAK/CONTRACTION/TROUGH)
-- **Anomaly Detection** — Isolation Forest + rule-based volume/price spike detection
-- **News Sentiment** — Keyword lexicon scoring across 25 major stocks via Google News RSS
+### 📈 Time-Series & Volatility
+- **ARIMA** — auto-differencing via ADF/KPSS stationarity tests, AIC model selection
+- **Holt-Winters ETS** — damped additive trend with scipy optimization
+- **GARCH(1,1)** — conditional heteroskedasticity with volatility cone term-structure
+- **Regime detection** — LOW / NORMAL / HIGH / EXTREME volatility classification
+- 95% confidence intervals on all forecasts
 
 </td>
-<td width="50%">
+<td width="50%" valign="top">
 
-### Portfolio & Macro
-- **Portfolio Optimizer** — Markowitz mean-variance efficient frontier with min-variance, max-Sharpe, and risk-profile-weighted allocations
-- **Portfolio Tracker** — Holdings management with real-time P&L, sector breakdown, and watchlist
-- **Macro Dashboard** — India VIX, USD/INR, Gold, Crude Oil, Nifty 50, Bank Nifty with regime classification (RISK_ON/RISK_OFF)
-- **ML Clustering** — K-Means (k=4) segmentation: Defensive, Value, Momentum, High-Volatility
+### 🔬 Risk & Factor Analysis
+- **Fama-French 4-Factor** — OLS decomposition: Market (β), Size (SMB), Value (HML), Momentum (WML)
+- **Alpha, R², factor contribution** — full attribution breakdown
+- **Markowitz MVO** — 2,000 random portfolios, efficient frontier, min-variance + max-Sharpe
+- **Composite technical signal** — 7-indicator weighted ensemble (RSI, MACD, BB, ATR, ADX, VWAP, OBV)
+- **Isolation Forest** anomaly detection on returns + volume
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🌐 Market Intelligence
+- **Stock Screener** — filter by signal, sector, Sharpe ratio, drawdown; composite scoring
+- **Sector Rotation** — multi-horizon momentum (1M/3M/6M/12M), market phase (EXPANSION/PEAK/CONTRACTION/TROUGH)
+- **Macro Dashboard** — India VIX, USD/INR, Gold, Crude Oil, Nifty 50, Bank Nifty; regime: RISK_ON / RISK_OFF / NEUTRAL
+- **News Sentiment** — keyword lexicon scoring across 25 major stocks via Google News RSS
+- **Anomaly alerts** — real-time flagging of unusual price/volume behaviour
+
+</td>
+<td width="50%" valign="top">
+
+### 💼 Portfolio & Planning
+- **Portfolio Tracker** — holdings management, real-time P&L, sector breakdown, watchlist
+- **AI Portfolio Builder** — LLM-powered stock selection with budget capping and diversification guardrails
+- **Monte Carlo Wealth Planner** — 1,000 simulations with SIP step-up, P10–P90 probability bands
+- **Goal-Based Planner** — reverse-solve for required monthly SIP with ±2%/±4% sensitivity analysis
+- **K-Means clustering (k=4)** — Defensive / Value / Momentum / High-Volatility stock segments
 
 </td>
 </tr>
@@ -89,207 +129,331 @@ PaisaPro.ai brings **hedge-fund-level quantitative analytics** to everyday India
 
 <br />
 
-## Architecture
+---
+
+## ◈ System Architecture
 
 ```
-                              ┌──────────┐
-                              │   User   │
-                              │ (Browser)│
-                              └────┬─────┘
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │                             │
-                    ▼                             ▼
-         ┌───────────────────┐         ┌───────────────────┐
-         │   Netlify CDN     │         │  HuggingFace      │
-         │                   │  REST   │  Spaces (Docker)   │
-         │  React 19 + TS    │──JSON──▶│                   │
-         │  Recharts         │◀──SSE───│  FastAPI + Python  │
-         │  Tailwind CSS     │         │  12 Service Modules│
-         │  React Query      │         │  APScheduler       │
-         │                   │         │                   │
-         │  paisapro.        │         │  stephenbaraik-   │
-         │  netlify.app      │         │  paisapro.hf.space│
-         └───────────────────┘         └─────┬───┬───┬─────┘
-                                             │   │   │
-                                    ┌────────┘   │   └────────┐
-                                    ▼            ▼            ▼
-                              ┌──────────┐ ┌──────────┐ ┌──────────┐
-                              │ Supabase │ │  Groq    │ │ yfinance │
-                              │ Postgres │ │ Llama 3.3│ │ NSE Data │
-                              │          │ │  70B     │ │ 500 Stocks│
-                              └──────────┘ └──────────┘ └──────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              USER (Browser)                             │
+└───────────────────────────────────┬─────────────────────────────────────┘
+                                    │
+                  ┌─────────────────┴──────────────────┐
+                  │                                     │
+                  ▼                                     ▼
+   ┌──────────────────────────┐         ┌──────────────────────────────┐
+   │      NETLIFY CDN         │         │   HUGGING FACE SPACES        │
+   │  ─────────────────────   │         │   (Docker · cpu-basic)       │
+   │  React 19 + TypeScript   │  REST   │  ──────────────────────────  │
+   │  Recharts · Tailwind 4   │◀──JSON──│  FastAPI 0.111 + Pydantic v2 │
+   │  TanStack Query v5       │───SSE──▶│  APScheduler (daily 18:00 IST│
+   │  Zustand                 │         │  CacheManager (TTL singleton) │
+   │  18 pages                │         │  19 service modules          │
+   │                          │         │  6 API routers · 35 endpoints│
+   │  paisapro.netlify.app    │         │  stephenbaraik-paisapro      │
+   └──────────────────────────┘         │        .hf.space             │
+                                        └────────┬──────┬──────┬───────┘
+                                                 │      │      │
+                              ┌──────────────────┘      │      └───────────────────┐
+                              ▼                          ▼                          ▼
+               ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+               │      SUPABASE        │  │        GROQ          │  │      YFINANCE        │
+               │   PostgreSQL         │  │   Llama 3.3 70B      │  │   NSE/BSE OHLCV      │
+               │  ─────────────────   │  │  ─────────────────   │  │  ─────────────────   │
+               │  stock_prices        │  │  Function calling    │  │  502 stocks          │
+               │  stocks (universe)   │  │  SSE streaming       │  │  Daily refresh       │
+               │  portfolio_holdings  │  │  Tool-use loop       │  │  ^NSEI · ^BSESN      │
+               │  watchlist           │  │  4 live tools        │  │  Google News RSS     │
+               └──────────────────────┘  └──────────────────────┘  └──────────────────────┘
 ```
 
 <br />
 
-## Tech Stack
+---
 
-<table>
-<tr>
-<th align="left">Layer</th>
-<th align="left">Technology</th>
-<th align="left">Purpose</th>
-</tr>
-<tr>
-<td><b>Frontend</b></td>
-<td>React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4</td>
-<td>SPA with 16 interactive pages, dark/light theme</td>
-</tr>
-<tr>
-<td><b>Charts</b></td>
-<td>Recharts (Line, Bar, Area, Scatter, Pie, Radar, Composed)</td>
-<td>Interactive data visualization</td>
-</tr>
-<tr>
-<td><b>State</b></td>
-<td>TanStack React Query v5, Zustand</td>
-<td>Server state caching, client state persistence</td>
-</tr>
-<tr>
-<td><b>Backend</b></td>
-<td>Python 3.12, FastAPI 0.111, Pydantic v2</td>
-<td>REST API + SSE streaming, request validation</td>
-</tr>
-<tr>
-<td><b>ML / Stats</b></td>
-<td>scikit-learn, statsmodels, scipy, arch, numpy, pandas</td>
-<td>RF, IF, K-Means, ARIMA, GARCH, OLS, Monte Carlo</td>
-</tr>
-<tr>
-<td><b>AI / LLM</b></td>
-<td>Groq API (Llama 3.3 70B Versatile)</td>
-<td>Conversational advisor, portfolio construction</td>
-</tr>
-<tr>
-<td><b>Database</b></td>
-<td>Supabase (PostgreSQL) via httpx PostgREST</td>
-<td>Stock prices, holdings, watchlist persistence</td>
-</tr>
-<tr>
-<td><b>Data</b></td>
-<td>yfinance, Google News RSS, NSE India</td>
-<td>Market OHLCV, news articles, index constituents</td>
-</tr>
-<tr>
-<td><b>Scheduling</b></td>
-<td>APScheduler (CronTrigger)</td>
-<td>Daily 6 PM IST data refresh + cache rebuild</td>
-</tr>
-<tr>
-<td><b>Deployment</b></td>
-<td>Netlify (frontend), Hugging Face Spaces Docker (backend)</td>
-<td>CDN-hosted SPA + containerized API</td>
-</tr>
-</table>
+## ◈ Backend Architecture
+
+The backend is structured in clean, decoupled layers:
+
+```
+backend/app/
+│
+├── api/routes/              ◈ 6 API routers — 35+ endpoints
+│   ├── advisor.py           → /advisor/chat  /advisor/chat/stream
+│   ├── analytics.py         → /analytics/report  screener  backtest  timeseries  model-health
+│   ├── advanced_analytics.py→ /advanced/sector-rotation  volatility  macro  risk-factors  ml-prediction
+│   ├── portfolio.py         → /portfolio/holdings  watchlist  ai-build  news-sentiment
+│   ├── stocks.py            → /stocks/search  history  indices  sectors
+│   └── planner.py           → /planner/forward  /planner/goal
+│
+├── core/
+│   ├── config.py            ◈ Pydantic Settings — env vars, secrets
+│   ├── cache.py             ◈ CacheManager — TTL in-memory singleton (shared by all services)
+│   ├── database.py          ◈ Supabase httpx REST client
+│   └── errors.py            ◈ Global exception handlers
+│
+├── data/                    ◈ Data access layer (Supabase I/O)
+│   ├── stock_repository.py  → load_universe · get_prices · save_prices · bulk_load
+│   └── macro_repository.py  → macro indicator persistence
+│
+├── services/                ◈ 19 domain service modules
+│   ├── universe.py          → Stock symbol list, names, sectors (loaded from Supabase)
+│   ├── market_data.py       → yfinance fetch · Supabase cache · OHLCV normalisation
+│   ├── technical.py         → 7-indicator composite signal engine
+│   ├── risk.py              → Sharpe, beta, VaR, max drawdown, annualised return
+│   ├── analytics.py         → ML orchestration: RF classifier · Isolation Forest · K-Means
+│   ├── ml_regression.py     → Ridge · Random Forest · GBM ensemble with walk-forward eval
+│   ├── timeseries.py        → ARIMA · Holt-Winters ETS · ADF/KPSS · decomposition
+│   ├── volatility.py        → GARCH(1,1) · volatility cone · regime classification
+│   ├── risk_factors.py      → Fama-French 4-factor OLS decomposition
+│   ├── sector_rotation.py   → Multi-horizon momentum · market phase detection
+│   ├── macro.py             → VIX · USD/INR · Gold · Crude · regime classification
+│   ├── news_sentiment.py    → Google News RSS · keyword lexicon · per-stock sentiment
+│   ├── ai_advisor.py        → Groq LLM · agentic tool-use loop · SSE streaming
+│   ├── ai_portfolio.py      → LLM-driven portfolio construction with guardrails
+│   ├── portfolio_optimizer.py → Markowitz MVO · efficient frontier · scipy optimise
+│   ├── portfolio_backtester.py→ Historical strategy backtesting
+│   ├── portfolio.py         → Holdings & watchlist CRUD (Supabase)
+│   ├── financial_engine.py  → SIP calculator · goal solver · asset allocation
+│   └── monte_carlo.py       → 1,000-simulation wealth projection · P10–P90 bands
+│
+├── schemas/                 ◈ Pydantic v2 request/response models
+├── main.py                  ◈ FastAPI app · lifespan · CORS · pre-warm cache
+└── scheduler.py             ◈ APScheduler — daily 18:00 IST data refresh + cache rebuild
+```
 
 <br />
 
-## Quantitative Models
+---
+
+## ◈ Quantitative Models
 
 | Model | Algorithm | Application |
 |-------|-----------|-------------|
-| **ARIMA** | Auto-differencing (ADF test), AIC grid search over p,d,q | 30-day price forecasting |
-| **Holt-Winters ETS** | Damped additive trend, scipy optimization | Alternative forecast model |
-| **GARCH(1,1)** | Conditional heteroskedasticity (arch library) | 30-day volatility forecast + regime |
-| **Fama-French 4-Factor** | OLS regression: MKT, SMB, HML, WML | Risk decomposition + alpha |
-| **Random Forest** | 252-day training, 6 technical features | 5-day directional prediction |
-| **Isolation Forest** | Auto-contamination on returns/volume | Anomaly detection |
-| **K-Means (k=4)** | Features: volatility, momentum, beta | Stock universe segmentation |
-| **Markowitz MVO** | 2,000 random portfolios + scipy optimize | Efficient frontier construction |
-| **Monte Carlo** | 1,000 sims, Normal returns, monthly compounding | Probabilistic wealth projection |
-| **Composite Signal** | Weighted ensemble: RSI(.25) MACD(.20) BB(.20) ATR(.15) ADX(.10) VWAP(.05) OBV(.05) | BUY/HOLD/SELL classification |
+| **ARIMA** | ADF/KPSS stationarity test → auto-differencing → AIC grid search p,q ∈ [0,3] | 30-day price forecast + CI |
+| **Holt-Winters ETS** | Damped additive trend, scipy Nelder-Mead optimisation | Alternative forecast model |
+| **GARCH(1,1)** | Conditional heteroskedasticity via `arch` library | 30-day volatility forecast + regime |
+| **Fama-French 4-Factor** | OLS: Rᵢ − Rf = α + β₁MKT + β₂SMB + β₃HML + β₄WML | Risk decomposition + alpha |
+| **Random Forest Classifier** | 252-day training window, 6 technical features, OOB score | 5-day directional prediction |
+| **ML Regression Ensemble** | Ridge + RF + GBM, 20+ OHLCV features, walk-forward CV | 30-day price regression |
+| **Isolation Forest** | Auto-contamination on log-returns + volume z-scores | Price/volume anomaly detection |
+| **K-Means (k=4)** | Features: annualised vol, 3M momentum, beta | Stock universe segmentation |
+| **Markowitz MVO** | 2,000 random portfolios + scipy `minimize` (SLSQP) | Efficient frontier construction |
+| **Monte Carlo** | 1,000 sims, normal returns, monthly compounding, SIP step-up | Probabilistic wealth projection |
+| **Composite Signal** | Weighted ensemble: RSI(.25) MACD(.20) BB(.20) ATR(.15) ADX(.10) VWAP(.05) OBV(.05) | BUY / HOLD / SELL classification |
 
 <br />
 
-## Project Structure
+---
+
+## ◈ Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4 | 18-page SPA, dark/light theme |
+| **Charts** | Recharts (Line, Bar, Area, Scatter, Pie, Radar, Composed) | Interactive financial visualisation |
+| **State** | TanStack React Query v5, Zustand | Server-state caching, persisted client state |
+| **Backend** | Python 3.12, FastAPI 0.111, Pydantic v2 | REST + SSE API, request validation |
+| **Cache** | In-memory CacheManager (TTL singleton) | Sub-millisecond cache reads across all services |
+| **ML / Stats** | scikit-learn, statsmodels, scipy, arch, numpy, pandas | RF, IF, K-Means, ARIMA, GARCH, OLS, Monte Carlo |
+| **AI / LLM** | Groq API — Llama 3.3 70B Versatile | Agentic advisor with function calling + SSE |
+| **Database** | Supabase (PostgreSQL) via httpx PostgREST | Stock prices, holdings, watchlist |
+| **Market Data** | yfinance, Google News RSS | NSE/BSE OHLCV, news sentiment |
+| **Scheduling** | APScheduler (CronTrigger) | Daily 18:00 IST refresh + cache rebuild |
+| **Deployment** | Netlify (frontend) · Hugging Face Spaces Docker (backend) | CDN SPA + containerised API |
+
+<br />
+
+---
+
+## ◈ Agentic AI Advisor — How It Works
+
+The AI advisor uses **Groq function-calling** to give the LLM access to live platform data mid-conversation:
 
 ```
-Ai Advisor/
-├── backend/
+User message
+     │
+     ▼
+┌─────────────────────────────────────────────────┐
+│              System Prompt                       │
+│  + User financial profile                        │
+│  + Portfolio holdings & watchlist                │
+│  + Live market signals (from analytics cache)    │
+│  + Macro regime (from macro cache)               │
+│  + News sentiment (from news cache)              │
+└─────────────────────────┬───────────────────────┘
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │   Groq Llama 3.3 70B  │  ◀── tool_choice: auto
+              │   (Tool-Use Round 1)  │
+              └─────────┬─────────────┘
+                        │  tool_calls?
+            ┌───────────┴──────────────┐
+            │  YES                     │  NO → stream reply
+            ▼                          ▼
+   ┌─────────────────┐         ┌───────────────┐
+   │  Execute Tool   │         │  [DONE]       │
+   │  ─────────────  │         └───────────────┘
+   │  get_stock_     │
+   │  analysis       │  ← queries analytics cache / yfinance
+   │  get_macro_     │  ← queries macro service
+   │  dashboard      │
+   │  get_news_      │  ← queries news sentiment service
+   │  sentiment      │
+   │  run_screener   │  ← queries screener with filters
+   └────────┬────────┘
+            │  append tool results
+            ▼
+     Round 2 / Round 3  (MAX_TOOL_ROUNDS = 3)
+            │
+            ▼
+   Final non-streaming request → word-by-word SSE stream
+```
+
+<br />
+
+---
+
+## ◈ Caching Architecture
+
+| Service | Cache Key | TTL | Notes |
+|---------|-----------|-----|-------|
+| Stock DataFrames | `stock:df:{symbol}:{period}` | 24 h | Refreshed by APScheduler after market close |
+| Analytics Report | `analytics:report` | 2 h | Full ML compute — RF, IF, K-Means, signals |
+| ML Regression | `ml:regression:{symbol}` | 2 h | Ridge + RF + GBM ensemble |
+| Time-Series | `timeseries:{symbol}:{horizon}` | 2 h | ARIMA + ETS fit |
+| GARCH Forecast | `volatility:{symbol}` | 1 h | Model re-fit on stale data |
+| Sector Rotation | `sector:rotation` | 1 h | Multi-horizon momentum |
+| Risk Factors | `risk:factors:{symbols}` | 1 h | Factor loadings are stable intraday |
+| Macro Dashboard | `macro:dashboard` | 30 min | Regime can shift intraday |
+| News Sentiment | `news:sentiment` | 30 min | Continuous news flow |
+
+<br />
+
+---
+
+## ◈ API Reference
+
+<details>
+<summary><b>▶ Expand — 35+ endpoints</b></summary>
+
+<br />
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/advisor/chat` | AI advisor — non-streaming |
+| `POST` | `/api/v1/advisor/chat/stream` | AI advisor — SSE token stream |
+| `GET` | `/api/v1/analytics/report` | Full ML analytics report |
+| `GET` | `/api/v1/analytics/market-overview` | Market breadth + sector heatmap |
+| `GET` | `/api/v1/analytics/stock-signals` | BUY/HOLD/SELL signals |
+| `GET` | `/api/v1/analytics/stock/{symbol}` | Full stock analysis |
+| `GET` | `/api/v1/analytics/screener` | Screener with filters |
+| `POST` | `/api/v1/analytics/portfolio-optimize` | Efficient frontier |
+| `GET` | `/api/v1/analytics/correlation` | Correlation matrix |
+| `GET` | `/api/v1/analytics/backtest/{symbol}` | Strategy backtest |
+| `POST` | `/api/v1/analytics/smart-portfolio` | Auto-optimised portfolio |
+| `GET` | `/api/v1/analytics/timeseries/{symbol}` | ARIMA/ETS forecast |
+| `GET` | `/api/v1/analytics/model-health` | MLOps — per-model RMSE, R², MAE |
+| `GET` | `/api/v1/advanced/ml-prediction/{symbol}` | ML regression forecast |
+| `GET` | `/api/v1/advanced/sector-rotation` | Sector momentum + phase |
+| `GET` | `/api/v1/advanced/volatility/{symbol}` | GARCH forecast + vol cone |
+| `GET` | `/api/v1/advanced/macro` | Macro indicators + regime |
+| `POST` | `/api/v1/advanced/risk-factors` | Fama-French decomposition |
+| `GET` | `/api/v1/stocks/search` | Search stocks by name/symbol |
+| `GET` | `/api/v1/stocks/{symbol}/history` | OHLCV history |
+| `GET` | `/api/v1/stocks/indices/summary` | Nifty 50, Sensex, Bank Nifty |
+| `GET` | `/api/v1/stocks/sectors/performance` | Sector-wise returns |
+| `GET` | `/api/v1/portfolio/holdings` | Portfolio + P&L |
+| `POST` | `/api/v1/portfolio/holdings` | Add holding |
+| `DELETE` | `/api/v1/portfolio/holdings/{id}` | Remove holding |
+| `GET` | `/api/v1/portfolio/watchlist` | Watchlist |
+| `POST` | `/api/v1/portfolio/watchlist` | Add to watchlist |
+| `DELETE` | `/api/v1/portfolio/watchlist/{id}` | Remove from watchlist |
+| `POST` | `/api/v1/portfolio/ai-build` | LLM portfolio builder |
+| `GET` | `/api/v1/portfolio/news-sentiment` | News sentiment |
+| `POST` | `/api/v1/planner/forward` | Monte Carlo wealth projection |
+| `POST` | `/api/v1/planner/goal` | Goal-based SIP solver |
+| `GET` | `/health` | Health check |
+
+</details>
+
+<br />
+
+---
+
+## ◈ Project Structure
+
+```
+PaisaPro/
+│
+├── backend/                 ◈ Python 3.12 · FastAPI backend
 │   ├── app/
-│   │   ├── api/routes/          # 6 API routers (30+ endpoints)
-│   │   │   ├── planner.py       # /planner/forward, /planner/goal
-│   │   │   ├── advisor.py       # /advisor/chat, /advisor/chat/stream
-│   │   │   ├── stocks.py        # /stocks/search, /stocks/{sym}/history
-│   │   │   ├── analytics.py     # /analytics/report, screener, backtest, timeseries
-│   │   │   ├── advanced_analytics.py  # /advanced/sector-rotation, volatility, macro, risk-factors
-│   │   │   └── portfolio.py     # /portfolio/holdings, watchlist, ai-build, news-sentiment
-│   │   ├── core/
-│   │   │   ├── config.py        # Pydantic Settings (env vars)
-│   │   │   └── database.py      # Supabase httpx REST client
-│   │   ├── schemas/             # Pydantic request/response models
-│   │   ├── services/            # 12 domain service modules
-│   │   │   ├── analytics.py     # Core ML engine (67KB) — indicators, RF, IF, KMeans
-│   │   │   ├── timeseries.py    # ARIMA, ETS, decomposition, ADF/KPSS
-│   │   │   ├── volatility.py    # GARCH(1,1), vol cone, regime detection
-│   │   │   ├── risk_factors.py  # Fama-French 4-factor OLS
-│   │   │   ├── sector_rotation.py  # Momentum analysis, market phase
-│   │   │   ├── macro.py         # VIX, USD/INR, Gold, Oil dashboard
-│   │   │   ├── ai_advisor.py    # Groq LLM chat + SSE streaming
-│   │   │   ├── ai_portfolio.py  # LLM portfolio construction
-│   │   │   ├── news_sentiment.py  # Google News keyword sentiment
-│   │   │   ├── financial_engine.py  # SIP calculator, goal solver
-│   │   │   ├── monte_carlo.py   # 1000-sim wealth projection
-│   │   │   └── portfolio.py     # Holdings & watchlist CRUD
-│   │   ├── main.py              # FastAPI app + lifespan + CORS
-│   │   └── scheduler.py         # APScheduler daily refresh
+│   │   ├── api/routes/      → 6 routers · 35+ endpoints
+│   │   ├── core/            → config · cache · database · errors
+│   │   ├── data/            → Supabase data access layer
+│   │   ├── schemas/         → Pydantic v2 models
+│   │   ├── services/        → 19 domain service modules
+│   │   ├── main.py          → FastAPI app + pre-warm + CORS
+│   │   └── scheduler.py     → APScheduler daily refresh
 │   ├── scripts/
-│   │   └── backfill_nifty500.py # One-time historical data loader
-│   ├── Dockerfile               # HF Spaces deployment
+│   │   ├── backfill_nifty500.py   → one-time historical data load
+│   │   └── backfill_macro.py      → one-time macro data load
+│   ├── Dockerfile           → HF Spaces deployment
 │   └── requirements.txt
 │
-├── frontend/
-│   ├── src/
-│   │   ├── pages/               # 16 page components
-│   │   │   ├── Landing.tsx      # Animated landing (ticker tape, SVG chart)
-│   │   │   ├── Dashboard.tsx    # KPI cards, profile form, indices
-│   │   │   ├── ForwardPlanner.tsx  # Monte Carlo wealth projection
-│   │   │   ├── GoalPlanner.tsx  # Target → required SIP
-│   │   │   ├── AIAdvisor.tsx    # Streaming LLM chat
-│   │   │   ├── Portfolio.tsx    # Holdings, P&L, AI portfolio builder
-│   │   │   ├── StockScreener.tsx  # Filter & rank stocks
-│   │   │   ├── PortfolioOptimizer.tsx  # Efficient frontier
-│   │   │   ├── TimeSeriesAnalysis.tsx  # ARIMA/ETS forecasts
-│   │   │   ├── VolatilityForecast.tsx  # GARCH + vol cone
-│   │   │   ├── SectorRotation.tsx  # Momentum rankings
-│   │   │   ├── RiskFactors.tsx  # Factor decomposition
-│   │   │   ├── MacroDashboard.tsx  # Macro indicators
-│   │   │   ├── NewsSentiment.tsx  # News sentiment analysis
-│   │   │   ├── AnalyticsReport.tsx  # Full ML report
-│   │   │   └── ScenarioComparison.tsx  # Side-by-side planning
-│   │   ├── components/
-│   │   │   ├── Layout.tsx       # Sidebar nav + header + theme toggle
-│   │   │   └── ProfileForm.tsx  # Financial profile input
-│   │   ├── api/client.ts        # Axios + SSE client (30+ API functions)
-│   │   ├── types/index.ts       # TypeScript interfaces
-│   │   └── store/profileStore.ts  # Zustand persisted state
-│   ├── netlify.toml             # Netlify SPA config
-│   ├── .env.production          # VITE_API_URL for production
-│   └── package.json
+├── frontend/                ◈ React 19 · TypeScript 5.9 SPA
+│   └── src/
+│       ├── pages/           → 18 page components
+│       │   ├── Landing.tsx         → animated hero, ticker tape
+│       │   ├── Dashboard.tsx       → KPI cards, indices, profile
+│       │   ├── AIAdvisor.tsx       → streaming LLM chat
+│       │   ├── Portfolio.tsx       → holdings, P&L, AI builder
+│       │   ├── StockScreener.tsx   → filter & rank
+│       │   ├── PortfolioOptimizer.tsx → efficient frontier
+│       │   ├── TimeSeriesAnalysis.tsx → ARIMA/ETS forecast
+│       │   ├── VolatilityForecast.tsx → GARCH + vol cone
+│       │   ├── MLPrediction.tsx    → ML regression forecast
+│       │   ├── ModelHealth.tsx     → MLOps dashboard
+│       │   ├── SectorRotation.tsx  → momentum rankings
+│       │   ├── RiskFactors.tsx     → factor decomposition
+│       │   ├── MacroDashboard.tsx  → macro indicators
+│       │   ├── NewsSentiment.tsx   → news analysis
+│       │   ├── AnalyticsReport.tsx → full ML report
+│       │   ├── ScenarioComparison.tsx → side-by-side planning
+│       │   ├── ForwardPlanner.tsx  → Monte Carlo projection
+│       │   └── GoalPlanner.tsx     → SIP goal solver
+│       ├── api/client.ts    → Axios + SSE client (35+ functions)
+│       ├── types/index.ts   → TypeScript interfaces
+│       └── store/           → Zustand persisted state
 │
-└── Draft.MD                     # Academic project report
+├── scripts/
+│   └── remove_bad_symbols.py  → utility: prune delisted stocks from Supabase
+│
+└── Dockerfile               → root HF Spaces container
 ```
 
 <br />
 
-## Getting Started
+---
+
+## ◈ Getting Started
 
 ### Prerequisites
 
 - Python 3.12+
 - Node.js 18+
 - Supabase project (free tier works)
-- Groq API key (free at [console.groq.com](https://console.groq.com))
+- Groq API key — free at [console.groq.com](https://console.groq.com)
 
-### 1. Clone & Setup Backend
+### 1 — Clone & configure
 
 ```bash
 git clone https://github.com/StephenBaraik/PaisaPro.git
 cd PaisaPro
 ```
 
-Create a `.env` file in the project root:
+Create `.env` in the project root:
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
@@ -300,7 +464,7 @@ FRONTEND_URL=http://localhost:5173
 APP_ENV=development
 ```
 
-Install and run the backend:
+### 2 — Run the backend
 
 ```bash
 cd backend
@@ -308,113 +472,40 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Backfill Stock Data (One-Time)
+### 3 — Backfill historical data (one-time)
 
 ```bash
 python -m scripts.backfill_nifty500
 ```
 
-### 3. Setup & Run Frontend
+### 4 — Run the frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# → http://localhost:5173
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
 <br />
 
-## API Endpoints
+---
 
-<details>
-<summary><b>Expand to see all 30+ endpoints</b></summary>
-
-<br />
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/planner/forward` | Monte Carlo wealth projection |
-| `POST` | `/api/v1/planner/goal` | Goal-based SIP solver |
-| `POST` | `/api/v1/advisor/chat` | AI advisor (non-streaming) |
-| `POST` | `/api/v1/advisor/chat/stream` | AI advisor (SSE streaming) |
-| `GET` | `/api/v1/stocks/search?q=` | Search stocks by name/symbol |
-| `GET` | `/api/v1/stocks/{symbol}/history` | OHLCV price history |
-| `GET` | `/api/v1/stocks/indices/summary` | Nifty 50, Sensex, Bank Nifty |
-| `GET` | `/api/v1/stocks/sectors/performance` | Sector-wise average returns |
-| `GET` | `/api/v1/analytics/market-overview` | Market breadth + heatmap |
-| `GET` | `/api/v1/analytics/stock-signals` | Technical signals (BUY/SELL) |
-| `GET` | `/api/v1/analytics/stock/{symbol}` | Full stock analysis |
-| `POST` | `/api/v1/analytics/portfolio-optimize` | Efficient frontier |
-| `GET` | `/api/v1/analytics/correlation` | Correlation matrix |
-| `GET` | `/api/v1/analytics/screener` | Stock screener with filters |
-| `GET` | `/api/v1/analytics/report` | Full ML analytics report |
-| `GET` | `/api/v1/analytics/backtest/{symbol}` | Strategy backtest |
-| `POST` | `/api/v1/analytics/smart-portfolio` | Auto-optimized portfolio |
-| `GET` | `/api/v1/analytics/timeseries/{symbol}` | ARIMA/ETS forecast |
-| `GET` | `/api/v1/analytics/timeseries-symbols` | Available symbols |
-| `GET` | `/api/v1/advanced/sector-rotation` | Sector momentum + phase |
-| `GET` | `/api/v1/advanced/volatility/{symbol}` | GARCH forecast + cone |
-| `GET` | `/api/v1/advanced/volatility-symbols` | Available symbols |
-| `GET` | `/api/v1/advanced/macro` | Macro indicators + regime |
-| `POST` | `/api/v1/advanced/risk-factors` | Fama-French decomposition |
-| `GET` | `/api/v1/portfolio/watchlist` | Get watchlist |
-| `POST` | `/api/v1/portfolio/watchlist` | Add to watchlist |
-| `DELETE` | `/api/v1/portfolio/watchlist/{id}` | Remove from watchlist |
-| `GET` | `/api/v1/portfolio/holdings` | Get portfolio + P&L |
-| `POST` | `/api/v1/portfolio/holdings` | Add holding |
-| `DELETE` | `/api/v1/portfolio/holdings/{id}` | Remove holding |
-| `POST` | `/api/v1/portfolio/ai-build` | AI portfolio builder |
-| `GET` | `/api/v1/portfolio/news-sentiment` | Market news sentiment |
-| `GET` | `/health` | Health check |
-
-</details>
-
-<br />
-
-## Caching Strategy
-
-| Service | TTL | Rationale |
-|---------|-----|-----------|
-| Stock DataFrames | 24 hours | Refreshed daily after market close |
-| Analytics Report | 2 hours | Balances freshness with compute cost |
-| Time-Series Models | 2 hours | Model parameters change slowly |
-| GARCH Forecasts | 1 hour | Volatility shifts faster |
-| Sector Rotation | 1 hour | Momentum is medium-frequency |
-| Risk Factors | 1 hour | Factor loadings are stable |
-| Macro Indicators | 30 minutes | Regime can shift intraday |
-| News Sentiment | 30 minutes | News flow is continuous |
-
-<br />
-
-## Deployment
+## ◈ Deployment
 
 | Component | Platform | URL |
 |-----------|----------|-----|
 | Frontend | Netlify CDN | [paisapro.netlify.app](https://paisapro.netlify.app) |
-| Backend | Hugging Face Spaces (Docker) | [stephenbaraik-paisapro.hf.space](https://stephenbaraik-paisapro.hf.space/health) |
-| Database | Supabase (PostgreSQL) | Managed cloud instance |
+| Backend | Hugging Face Spaces — Docker | [stephenbaraik-paisapro.hf.space](https://stephenbaraik-paisapro.hf.space/health) |
+| Database | Supabase (PostgreSQL) | Managed cloud |
 
 <br />
 
-## Built By
+---
 
-<table>
-<tr>
-<td align="center">
-<b>Stephen Baraik</b><br />
-Full-Stack Developer & Creator<br />
-<a href="https://github.com/StephenBaraik">GitHub</a>
-</td>
-</tr>
-</table>
+## ◈ Disclaimer
 
-<br />
-
-## Disclaimer
-
-> PaisaPro.ai is an analytical and educational tool. It is **not** a SEBI-registered investment advisor. All signals, forecasts, and AI-generated recommendations are for **informational purposes only** and do not constitute financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.
+> PaisaPro is an analytical and educational tool. It is **not** a SEBI-registered investment advisor. All signals, forecasts, and AI-generated recommendations are for **informational purposes only** and do not constitute financial advice. Past performance does not guarantee future results. Always consult a qualified financial advisor before making investment decisions.
 
 <br />
 
@@ -422,8 +513,10 @@ Full-Stack Developer & Creator<br />
 
 <div align="center">
 
-**[Live Demo](https://paisapro.netlify.app)** · **[API Health](https://stephenbaraik-paisapro.hf.space/health)** · **[Report an Issue](https://github.com/StephenBaraik/PaisaPro/issues)**
+**[◉ Live Demo](https://paisapro.netlify.app)** · **[⚡ API](https://stephenbaraik-paisapro.hf.space/health)** · **[⚠ Issues](https://github.com/StephenBaraik/PaisaPro/issues)**
 
-<sub>Built with Python, React, and a lot of math.</sub>
+<br />
+
+<sub>Built by <a href="https://github.com/StephenBaraik">Stephen Baraik</a> · Python · React · Quantitative Finance</sub>
 
 </div>
