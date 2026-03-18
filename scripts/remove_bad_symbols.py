@@ -1,17 +1,20 @@
 """
-Scan all symbols in the Supabase stocks table, test each against yfinance,
-and delete the ones with no data from both stocks and stock_prices tables.
+Find and remove stocks with no recent price data in Supabase.
+
+Strategy:
+  1. Load all symbols from the `stocks` table
+  2. For each symbol, query the latest date in `stock_prices` (1 row, fast)
+  3. Flag symbols with no rows OR latest date older than 180 days
+  4. Confirm then delete
 """
 
 import sys
 import os
-import time
 import logging
+from datetime import datetime, timezone, timedelta
 
 import httpx
-import yfinance as yf
 
-# Allow importing backend config
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("ENV", "production")
 
@@ -21,16 +24,16 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-
 SUPABASE_URL = settings.supabase_url
 HEADERS = {
     "apikey": settings.supabase_service_role_key,
     "Authorization": f"Bearer {settings.supabase_service_role_key}",
     "Content-Type": "application/json",
 }
+STALE_CUTOFF = (datetime.now(timezone.utc) - timedelta(days=180)).strftime("%Y-%m-%d")
 
 
-def fetch_all_symbols() -> list[str]:
+def get_all_symbols() -> list[str]:
     resp = httpx.get(
         f"{SUPABASE_URL}/rest/v1/stocks",
         headers=HEADERS,
@@ -38,70 +41,89 @@ def fetch_all_symbols() -> list[str]:
         timeout=15,
     )
     resp.raise_for_status()
-    return [row["symbol"] for row in resp.json()]
+    return [r["symbol"] for r in resp.json()]
 
 
-def has_yfinance_data(symbol_ns: str) -> bool:
-    try:
-        df = yf.Ticker(symbol_ns).history(period="5d", interval="1d", auto_adjust=True)
-        return df is not None and not df.empty
-    except Exception:
-        return False
+def get_latest_date(bare: str) -> str | None:
+    """Return the most recent date for this symbol, or None if no rows."""
+    resp = httpx.get(
+        f"{SUPABASE_URL}/rest/v1/stock_prices",
+        headers=HEADERS,
+        params={
+            "symbol": f"eq.{bare}",
+            "select": "date",
+            "order": "date.desc",
+            "limit": "1",
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0]["date"] if rows else None
 
 
 def delete_symbol(bare: str) -> None:
-    # Delete from stock_prices
     r1 = httpx.delete(
         f"{SUPABASE_URL}/rest/v1/stock_prices",
         headers=HEADERS,
         params={"symbol": f"eq.{bare}"},
         timeout=15,
     )
-    # Delete from stocks
     r2 = httpx.delete(
         f"{SUPABASE_URL}/rest/v1/stocks",
         headers=HEADERS,
         params={"symbol": f"eq.{bare}"},
         timeout=15,
     )
-    logger.info("  Deleted %s — stock_prices: %s, stocks: %s", bare, r1.status_code, r2.status_code)
+    logger.info("  Deleted %-20s — prices: %s, stocks: %s", bare, r1.status_code, r2.status_code)
 
 
 def main():
-    bare_symbols = fetch_all_symbols()
-    logger.info("Loaded %d symbols from Supabase", len(bare_symbols))
+    logger.info("Loading symbols from Supabase…")
+    symbols = get_all_symbols()
+    logger.info("Found %d symbols\n", len(symbols))
 
-    bad: list[str] = []
+    no_data: list[str] = []
+    stale: list[str] = []
 
-    for i, bare in enumerate(bare_symbols, 1):
-        symbol_ns = f"{bare}.NS"
-        ok = has_yfinance_data(symbol_ns)
-        status = "✓" if ok else "✗ NO DATA"
-        logger.info("[%d/%d] %s — %s", i, len(bare_symbols), symbol_ns, status)
-        if not ok:
-            bad.append(bare)
-        # Avoid hammering Yahoo Finance
-        if i % 10 == 0:
-            time.sleep(1)
+    for i, bare in enumerate(symbols, 1):
+        try:
+            latest = get_latest_date(bare)
+        except Exception as e:
+            logger.warning("[%d/%d] %s — query failed: %s", i, len(symbols), bare, e)
+            continue
 
-    logger.info("\n--- Results ---")
-    logger.info("Total symbols: %d", len(bare_symbols))
-    logger.info("Bad symbols:   %d", len(bad))
+        if latest is None:
+            no_data.append(bare)
+            logger.info("[%d/%d] ✗ NO DATA  : %s", i, len(symbols), bare)
+        elif latest < STALE_CUTOFF:
+            stale.append(bare)
+            logger.info("[%d/%d] ~ STALE    : %s (last: %s)", i, len(symbols), bare, latest)
+        else:
+            logger.info("[%d/%d] ✓ %s (last: %s)", i, len(symbols), bare, latest)
 
-    if not bad:
-        logger.info("All symbols have yfinance data. Nothing to remove.")
+    to_remove = no_data + stale
+
+    logger.info("\n--- Summary ---")
+    logger.info("Total   : %d", len(symbols))
+    logger.info("No data : %d — %s", len(no_data), no_data or "none")
+    logger.info("Stale   : %d — %s", len(stale), stale or "none")
+    logger.info("Remove  : %d", len(to_remove))
+
+    if not to_remove:
+        logger.info("\nAll symbols have recent data. Nothing to remove.")
         return
 
-    logger.info("\nSymbols to remove: %s", bad)
-    confirm = input("\nDelete these from Supabase? [y/N]: ").strip().lower()
+    print(f"\nDelete {len(to_remove)} symbols from Supabase? [y/N]: ", end="", flush=True)
+    confirm = sys.stdin.readline().strip().lower()
     if confirm != "y":
         logger.info("Aborted.")
         return
 
-    for bare in bad:
+    for bare in to_remove:
         delete_symbol(bare)
 
-    logger.info("\nDone. Removed %d symbols.", len(bad))
+    logger.info("\nDone. Removed %d symbols.", len(to_remove))
 
 
 if __name__ == "__main__":
