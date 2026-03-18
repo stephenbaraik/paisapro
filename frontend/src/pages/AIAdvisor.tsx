@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useCallback, type ComponentPropsWithoutRef
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Send, Bot, User, Sparkles, MessageSquare, RotateCcw, Square } from 'lucide-react'
-import { streamAdvisorMessage } from '../api/client'
+import { streamAdvisorMessage, getPortfolio, getWatchlist } from '../api/client'
 import { useProfileStore } from '../store/profileStore'
-import type { ChatMessage } from '../types'
+import type { ChatMessage, PortfolioHoldingContext, WatchlistItemContext } from '../types'
 
 const mdComponents = {
   table: (props: ComponentPropsWithoutRef<'table'>) => (
@@ -30,6 +30,40 @@ export default function AIAdvisor() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef(false)
+
+  // Portfolio & watchlist context — fetched once on mount
+  const [holdings, setHoldings] = useState<PortfolioHoldingContext[]>([])
+  const [watchlist, setWatchlist] = useState<WatchlistItemContext[]>([])
+
+  useEffect(() => {
+    getPortfolio()
+      .then(res => {
+        setHoldings(
+          res.holdings.map(h => ({
+            symbol: h.symbol,
+            quantity: h.quantity,
+            buy_price: h.buy_price,
+            current_price: h.current_price,
+            pnl_pct: h.pnl_pct,
+            sector: h.sector,
+          }))
+        )
+      })
+      .catch(() => {}) // portfolio may be empty
+
+    getWatchlist()
+      .then(res => {
+        setWatchlist(
+          res.items.map(w => ({
+            symbol: w.symbol,
+            current_price: w.current_price,
+            daily_change_pct: w.daily_change_pct,
+            sector: w.sector,
+          }))
+        )
+      })
+      .catch(() => {}) // watchlist may be empty
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -63,6 +97,8 @@ export default function AIAdvisor() {
         message: msg,
         profile: profile || undefined,
         conversation_history: messages,
+        portfolio_holdings: holdings.length > 0 ? holdings : undefined,
+        watchlist: watchlist.length > 0 ? watchlist : undefined,
       },
       (token) => {
         if (abortRef.current) return
@@ -84,7 +120,7 @@ export default function AIAdvisor() {
         setIsStreaming(false)
       },
     )
-  }, [input, isStreaming, messages, profile])
+  }, [input, isStreaming, messages, profile, holdings, watchlist])
 
   const stopStreaming = () => {
     abortRef.current = true

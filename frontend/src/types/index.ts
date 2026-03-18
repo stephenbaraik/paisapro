@@ -63,6 +63,22 @@ export interface AdvisorChatResponse {
   suggestions: string[]
 }
 
+export interface PortfolioHoldingContext {
+  symbol: string
+  quantity: number
+  buy_price: number
+  current_price: number
+  pnl_pct: number
+  sector: string
+}
+
+export interface WatchlistItemContext {
+  symbol: string
+  current_price: number
+  daily_change_pct: number
+  sector: string
+}
+
 export interface Stock {
   symbol: string
   company_name: string

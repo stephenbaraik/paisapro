@@ -12,18 +12,28 @@ class RiskProfile(str, Enum):
 class UserFinancialProfile(BaseModel):
     monthly_income: float = Field(..., gt=0, description="Monthly gross income in INR")
     monthly_expenses: float = Field(..., ge=0, description="Monthly expenses in INR")
-    current_savings: float = Field(0, ge=0, description="Existing savings/investments in INR")
+    current_savings: float = Field(
+        0, ge=0, description="Existing savings/investments in INR"
+    )
     age: int = Field(..., ge=18, le=80)
     risk_profile: RiskProfile = RiskProfile.moderate
-    annual_income_growth_pct: float = Field(5.0, ge=0, le=50, description="Expected annual income growth %")
+    annual_income_growth_pct: float = Field(
+        5.0, ge=0, le=50, description="Expected annual income growth %"
+    )
 
 
 class ForwardPlannerRequest(BaseModel):
     profile: UserFinancialProfile
-    monthly_investment: float = Field(..., gt=0, description="Monthly SIP amount in INR")
-    annual_stepup_pct: float = Field(10.0, ge=0, le=50, description="Yearly increase in SIP amount %")
+    monthly_investment: float = Field(
+        ..., gt=0, description="Monthly SIP amount in INR"
+    )
+    annual_stepup_pct: float = Field(
+        10.0, ge=0, le=50, description="Yearly increase in SIP amount %"
+    )
     horizon_years: int = Field(..., ge=1, le=40)
-    expected_annual_return_pct: Optional[float] = Field(None, description="Override return rate; auto-picked from risk profile if None")
+    expected_annual_return_pct: Optional[float] = Field(
+        None, description="Override return rate; auto-picked from risk profile if None"
+    )
     simulations: int = Field(1000, ge=100, le=10000)
 
 
@@ -73,10 +83,37 @@ class GoalPlannerResponse(BaseModel):
     asset_allocation: dict[str, float]
 
 
+class ChatHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class PortfolioHoldingContext(BaseModel):
+    """Lightweight holding sent from frontend for advisor context."""
+
+    symbol: str
+    quantity: float
+    buy_price: float
+    current_price: float = 0.0
+    pnl_pct: float = 0.0
+    sector: str = ""
+
+
+class WatchlistItemContext(BaseModel):
+    """Lightweight watchlist item sent from frontend for advisor context."""
+
+    symbol: str
+    current_price: float = 0.0
+    daily_change_pct: float = 0.0
+    sector: str = ""
+
+
 class AdvisorChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     profile: Optional[UserFinancialProfile] = None
-    conversation_history: list[dict] = []
+    conversation_history: list[ChatHistoryMessage] = []
+    portfolio_holdings: list[PortfolioHoldingContext] = []
+    watchlist: list[WatchlistItemContext] = []
 
 
 class AdvisorChatResponse(BaseModel):
