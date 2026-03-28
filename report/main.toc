@@ -1,0 +1,180 @@
+\contentsline {chapter}{List of Abbreviations}{ix}{chapter*.1}%
+\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Background}{1}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Problem Statement}{2}{section.1.2}%
+\contentsline {subsection}{\numberline {1.2.1}Analytical Accessibility Gap}{2}{subsection.1.2.1}%
+\contentsline {subsection}{\numberline {1.2.2}Contextual AI Advisory Limitation}{2}{subsection.1.2.2}%
+\contentsline {subsection}{\numberline {1.2.3}Fragmented Tool Landscape}{2}{subsection.1.2.3}%
+\contentsline {section}{\numberline {1.3}Aim}{3}{section.1.3}%
+\contentsline {section}{\numberline {1.4}Objectives}{3}{section.1.4}%
+\contentsline {section}{\numberline {1.5}Scope of the Project}{4}{section.1.5}%
+\contentsline {section}{\numberline {1.6}Organization of the Report}{4}{section.1.6}%
+\contentsline {chapter}{\numberline {2}Literature Review}{6}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Technical Analysis and Signal Generation}{6}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Time-Series Forecasting in Financial Markets}{7}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}ARIMA Models}{7}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}Exponential Smoothing}{7}{subsection.2.2.2}%
+\contentsline {subsection}{\numberline {2.2.3}Seasonal Decomposition}{7}{subsection.2.2.3}%
+\contentsline {section}{\numberline {2.3}Volatility Modelling}{8}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}GARCH Models}{8}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}Volatility Regimes and Cones}{8}{subsection.2.3.2}%
+\contentsline {section}{\numberline {2.4}Factor Models and Risk Decomposition}{8}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Portfolio Optimization}{9}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Monte Carlo Simulation in Financial Planning}{9}{section.2.6}%
+\contentsline {section}{\numberline {2.7}Machine Learning in Financial Markets}{9}{section.2.7}%
+\contentsline {subsection}{\numberline {2.7.1}Random Forests}{9}{subsection.2.7.1}%
+\contentsline {subsection}{\numberline {2.7.2}Gradient Boosting}{10}{subsection.2.7.2}%
+\contentsline {subsection}{\numberline {2.7.3}Anomaly Detection with Isolation Forest}{10}{subsection.2.7.3}%
+\contentsline {subsection}{\numberline {2.7.4}Clustering with K-Means}{10}{subsection.2.7.4}%
+\contentsline {section}{\numberline {2.8}Large Language Models in Financial Advisory}{10}{section.2.8}%
+\contentsline {section}{\numberline {2.9}Sentiment Analysis in Finance}{11}{section.2.9}%
+\contentsline {section}{\numberline {2.10}Agentic AI and Tool-Augmented LLMs}{12}{section.2.10}%
+\contentsline {section}{\numberline {2.11}Caching and Performance Optimization in Financial Systems}{12}{section.2.11}%
+\contentsline {section}{\numberline {2.12}Web Application Architecture for Financial Platforms}{13}{section.2.12}%
+\contentsline {section}{\numberline {2.13}Indian Equity Market Context}{13}{section.2.13}%
+\contentsline {chapter}{\numberline {3}System Analysis and Design}{15}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Requirements Analysis}{15}{section.3.1}%
+\contentsline {subsection}{\numberline {3.1.1}Functional Requirements}{15}{subsection.3.1.1}%
+\contentsline {subsection}{\numberline {3.1.2}Non-Functional Requirements}{16}{subsection.3.1.2}%
+\contentsline {section}{\numberline {3.2}System Architecture}{17}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Architectural Philosophy}{17}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}High-Level Architecture}{18}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Component Architecture}{18}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}Data Flow Architecture}{20}{subsection.3.2.4}%
+\contentsline {subsection}{\numberline {3.2.5}Deployment Architecture}{20}{subsection.3.2.5}%
+\contentsline {section}{\numberline {3.3}Database Design}{21}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Entity-Relationship Model}{21}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Indexing Strategy}{21}{subsection.3.3.2}%
+\contentsline {section}{\numberline {3.4}API Design}{22}{section.3.4}%
+\contentsline {section}{\numberline {3.5}Caching Architecture}{23}{section.3.5}%
+\contentsline {section}{\numberline {3.6}UML Diagrams}{24}{section.3.6}%
+\contentsline {subsection}{\numberline {3.6.1}Use Case Diagram}{24}{subsection.3.6.1}%
+\contentsline {subsection}{\numberline {3.6.2}Class Diagram (Backend Services)}{25}{subsection.3.6.2}%
+\contentsline {subsection}{\numberline {3.6.3}Sequence Diagram: AI Advisor Chat Flow}{25}{subsection.3.6.3}%
+\contentsline {subsection}{\numberline {3.6.4}Activity Diagram: Daily Data Refresh Pipeline}{26}{subsection.3.6.4}%
+\contentsline {chapter}{\numberline {4}Methodology}{27}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Technical Indicator Computation}{27}{section.4.1}%
+\contentsline {subsection}{\numberline {4.1.1}Simple Moving Average (SMA)}{27}{subsection.4.1.1}%
+\contentsline {subsection}{\numberline {4.1.2}Exponential Moving Average (EMA)}{27}{subsection.4.1.2}%
+\contentsline {subsection}{\numberline {4.1.3}MACD (Moving Average Convergence Divergence)}{27}{subsection.4.1.3}%
+\contentsline {subsection}{\numberline {4.1.4}RSI (Relative Strength Index)}{28}{subsection.4.1.4}%
+\contentsline {subsection}{\numberline {4.1.5}Bollinger Bands}{28}{subsection.4.1.5}%
+\contentsline {subsection}{\numberline {4.1.6}ATR (Average True Range)}{28}{subsection.4.1.6}%
+\contentsline {subsection}{\numberline {4.1.7}VWAP (Volume-Weighted Average Price)}{28}{subsection.4.1.7}%
+\contentsline {subsection}{\numberline {4.1.8}OBV (On-Balance Volume)}{28}{subsection.4.1.8}%
+\contentsline {subsection}{\numberline {4.1.9}Composite Signal Generation}{29}{subsection.4.1.9}%
+\contentsline {section}{\numberline {4.2}Machine Learning Models}{29}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Random Forest Classifier --- Directional Prediction}{29}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}ML Regression Ensemble --- Return Forecasting}{30}{subsection.4.2.2}%
+\contentsline {subsubsection}{Feature Engineering}{30}{subsubsection*.15}%
+\contentsline {subsubsection}{Target Variable}{31}{subsubsection*.17}%
+\contentsline {subsubsection}{Three Models}{31}{subsubsection*.18}%
+\contentsline {subsubsection}{Walk-Forward Cross-Validation}{32}{subsubsection*.19}%
+\contentsline {subsubsection}{Ensemble and Confidence Intervals}{32}{subsubsection*.20}%
+\contentsline {subsection}{\numberline {4.2.3}Isolation Forest --- Anomaly Detection}{32}{subsection.4.2.3}%
+\contentsline {subsection}{\numberline {4.2.4}K-Means Clustering --- Stock Segmentation}{33}{subsection.4.2.4}%
+\contentsline {section}{\numberline {4.3}Time-Series Forecasting}{33}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Stationarity Testing}{33}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}ARIMA Model}{33}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Holt-Winters Exponential Smoothing (ETS)}{34}{subsection.4.3.3}%
+\contentsline {subsection}{\numberline {4.3.4}Seasonal Decomposition}{34}{subsection.4.3.4}%
+\contentsline {section}{\numberline {4.4}Volatility Modelling}{34}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}GARCH(1,1) Model}{34}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {4.4.2}Volatility Cone Construction}{35}{subsection.4.4.2}%
+\contentsline {subsection}{\numberline {4.4.3}Regime Classification}{35}{subsection.4.4.3}%
+\contentsline {subsection}{\numberline {4.4.4}Entry/Exit Signals}{36}{subsection.4.4.4}%
+\contentsline {section}{\numberline {4.5}Risk Analytics}{36}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}Risk Metrics Suite}{36}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {4.5.2}Fama-French 4-Factor Model}{36}{subsection.4.5.2}%
+\contentsline {section}{\numberline {4.6}Portfolio Optimization}{37}{section.4.6}%
+\contentsline {subsection}{\numberline {4.6.1}Markowitz Mean-Variance Optimization}{37}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {4.6.2}Target Volatilities by Risk Profile}{37}{subsection.4.6.2}%
+\contentsline {section}{\numberline {4.7}Monte Carlo Wealth Projection}{37}{section.4.7}%
+\contentsline {subsection}{\numberline {4.7.1}Forward Planner}{37}{subsection.4.7.1}%
+\contentsline {subsection}{\numberline {4.7.2}Goal Planner (Reverse Solver)}{38}{subsection.4.7.2}%
+\contentsline {section}{\numberline {4.8}Sector Rotation Analysis}{38}{section.4.8}%
+\contentsline {subsection}{\numberline {4.8.1}Multi-Horizon Momentum}{38}{subsection.4.8.1}%
+\contentsline {subsection}{\numberline {4.8.2}Market Phase Detection}{39}{subsection.4.8.2}%
+\contentsline {section}{\numberline {4.9}Macroeconomic Dashboard}{39}{section.4.9}%
+\contentsline {subsection}{\numberline {4.9.1}Tracked Indicators}{39}{subsection.4.9.1}%
+\contentsline {subsection}{\numberline {4.9.2}Regime Classification}{39}{subsection.4.9.2}%
+\contentsline {section}{\numberline {4.10}News Sentiment Analysis}{39}{section.4.10}%
+\contentsline {section}{\numberline {4.11}AI Advisory System}{40}{section.4.11}%
+\contentsline {subsection}{\numberline {4.11.1}LLM Integration}{40}{subsection.4.11.1}%
+\contentsline {subsection}{\numberline {4.11.2}Agentic Tool Use (Function Calling)}{40}{subsection.4.11.2}%
+\contentsline {subsection}{\numberline {4.11.3}Context Injection}{41}{subsection.4.11.3}%
+\contentsline {chapter}{\numberline {5}Implementation}{42}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Technology Stack}{42}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Backend Technologies}{42}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Frontend Technologies}{43}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {5.1.3}Infrastructure}{43}{subsection.5.1.3}%
+\contentsline {section}{\numberline {5.2}Development Methodology and Workflow}{43}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Phase 1: Foundation (Data Layer)}{43}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}Phase 2: Analytics Engine}{44}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.2.3}Phase 3: API Layer}{44}{subsection.5.2.3}%
+\contentsline {subsection}{\numberline {5.2.4}Phase 4: AI Advisory Integration}{44}{subsection.5.2.4}%
+\contentsline {subsection}{\numberline {5.2.5}Phase 5: Frontend Development}{45}{subsection.5.2.5}%
+\contentsline {subsection}{\numberline {5.2.6}Phase 6: Deployment and Production Hardening}{45}{subsection.5.2.6}%
+\contentsline {section}{\numberline {5.3}Project Structure}{45}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Key Implementation Details}{46}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}FastAPI Application Entry Point}{46}{subsection.5.4.1}%
+\contentsline {subsection}{\numberline {5.4.2}Cache Manager Implementation}{47}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {5.4.3}AI Advisor with Tool Use}{48}{subsection.5.4.3}%
+\contentsline {subsection}{\numberline {5.4.4}ML Regression Feature Engineering}{49}{subsection.5.4.4}%
+\contentsline {subsection}{\numberline {5.4.5}Frontend: React Component Pattern}{50}{subsection.5.4.5}%
+\contentsline {subsection}{\numberline {5.4.6}SSE Streaming Implementation}{51}{subsection.5.4.6}%
+\contentsline {subsection}{\numberline {5.4.7}Docker Deployment Configuration}{51}{subsection.5.4.7}%
+\contentsline {section}{\numberline {5.5}Frontend Pages Overview}{52}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Security Implementation}{53}{section.5.6}%
+\contentsline {subsection}{\numberline {5.6.1}Network and Transport Security}{53}{subsection.5.6.1}%
+\contentsline {subsection}{\numberline {5.6.2}Secret Management}{53}{subsection.5.6.2}%
+\contentsline {subsection}{\numberline {5.6.3}Data Security}{54}{subsection.5.6.3}%
+\contentsline {chapter}{\numberline {6}Results and Discussion}{55}{chapter.6}%
+\contentsline {section}{\numberline {6.1}System Overview}{55}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Technical Analysis Results}{55}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}Individual Indicator Behavior}{56}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}Screener Performance}{56}{subsection.6.2.2}%
+\contentsline {section}{\numberline {6.3}Machine Learning Model Performance}{57}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}Random Forest Classifier}{57}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}ML Regression Ensemble}{57}{subsection.6.3.2}%
+\contentsline {subsubsection}{Feature Importance Analysis}{57}{subsubsection*.38}%
+\contentsline {subsubsection}{Walk-Forward Cross-Validation Results}{58}{subsubsection*.40}%
+\contentsline {subsection}{\numberline {6.3.3}Anomaly Detection}{59}{subsection.6.3.3}%
+\contentsline {section}{\numberline {6.4}Time-Series Forecasting Results}{59}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Volatility Modelling Results}{59}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Portfolio Optimization Results}{59}{section.6.6}%
+\contentsline {subsection}{\numberline {6.6.1}Efficient Frontier Analysis}{60}{subsection.6.6.1}%
+\contentsline {section}{\numberline {6.7}AI Advisor Evaluation}{60}{section.6.7}%
+\contentsline {section}{\numberline {6.8}Monte Carlo Wealth Projection}{61}{section.6.8}%
+\contentsline {section}{\numberline {6.9}Discussion}{61}{section.6.9}%
+\contentsline {subsection}{\numberline {6.9.1}Strengths}{61}{subsection.6.9.1}%
+\contentsline {subsection}{\numberline {6.9.2}Limitations}{62}{subsection.6.9.2}%
+\contentsline {subsection}{\numberline {6.9.3}User Experience Evaluation}{62}{subsection.6.9.3}%
+\contentsline {subsection}{\numberline {6.9.4}Comparison with Existing Platforms}{63}{subsection.6.9.4}%
+\contentsline {section}{\numberline {6.10}System Testing and Validation}{63}{section.6.10}%
+\contentsline {subsection}{\numberline {6.10.1}API Endpoint Testing}{64}{subsection.6.10.1}%
+\contentsline {subsection}{\numberline {6.10.2}Edge Case and Error Handling Tests}{64}{subsection.6.10.2}%
+\contentsline {subsection}{\numberline {6.10.3}Frontend Component Testing}{65}{subsection.6.10.3}%
+\contentsline {subsection}{\numberline {6.10.4}Performance and Load Testing}{65}{subsection.6.10.4}%
+\contentsline {subsection}{\numberline {6.10.5}Cross-Browser Compatibility}{66}{subsection.6.10.5}%
+\contentsline {subsection}{\numberline {6.10.6}Responsive Design Testing}{66}{subsection.6.10.6}%
+\contentsline {subsection}{\numberline {6.10.7}Accessibility Testing}{67}{subsection.6.10.7}%
+\contentsline {subsection}{\numberline {6.10.8}Data Integrity Validation}{67}{subsection.6.10.8}%
+\contentsline {chapter}{\numberline {7}Conclusion and Future Work}{69}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Summary of Contributions}{69}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Objectives Achievement}{70}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Future Work}{70}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Lessons Learned}{71}{section.7.4}%
+\contentsline {section}{\numberline {7.5}Concluding Remarks}{72}{section.7.5}%
+\contentsline {chapter}{References}{73}{chapter*.54}%
+\contentsline {chapter}{\numberline {A}Complete API Endpoint Reference}{77}{appendix.1.A}%
+\contentsline {section}{\numberline {A.1}Advisor Endpoints}{77}{section.1.A.1}%
+\contentsline {subsection}{\numberline {A.1.1}POST /api/v1/advisor/chat/stream}{77}{subsection.1.A.1.1}%
+\contentsline {section}{\numberline {A.2}Analytics Endpoints}{77}{section.1.A.2}%
+\contentsline {subsection}{\numberline {A.2.1}GET /api/v1/analytics/stock/\{symbol\}}{77}{subsection.1.A.2.1}%
+\contentsline {subsection}{\numberline {A.2.2}POST /api/v1/analytics/portfolio-optimize}{78}{subsection.1.A.2.2}%
+\contentsline {section}{\numberline {A.3}Planner Endpoints}{78}{section.1.A.3}%
+\contentsline {subsection}{\numberline {A.3.1}POST /api/v1/planner/forward}{78}{subsection.1.A.3.1}%
+\contentsline {chapter}{\numberline {B}Environment Variables Reference}{80}{appendix.1.B}%
+\contentsline {chapter}{\numberline {C}Database Schema DDL}{81}{appendix.1.C}%
+\contentsline {chapter}{\numberline {D}Pydantic Schema Definitions}{83}{appendix.1.D}%
