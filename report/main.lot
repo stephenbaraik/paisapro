@@ -1,0 +1,53 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {3.3}{\ignorespaces Backend service module inventory}}{19}{table.caption.3}%
+\contentsline {table}{\numberline {3.4}{\ignorespaces Deployment configuration}}{20}{table.caption.5}%
+\contentsline {table}{\numberline {3.5}{\ignorespaces Database indexing strategy}}{21}{table.caption.7}%
+\contentsline {table}{\numberline {3.6}{\ignorespaces Complete API endpoint reference}}{23}{table.3.6}%
+\contentsline {table}{\numberline {3.7}{\ignorespaces Cache TTL configuration by data type}}{23}{table.caption.8}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Composite signal weights and mapping}}{29}{table.caption.13}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Random Forest classifier features}}{30}{table.caption.14}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces OHLC microstructure features}}{31}{table.caption.16}%
+\contentsline {table}{\numberline {4.4}{\ignorespaces Volatility regime classification thresholds}}{35}{table.caption.21}%
+\contentsline {table}{\numberline {4.5}{\ignorespaces Risk metrics with formulas}}{36}{table.caption.22}%
+\contentsline {table}{\numberline {4.6}{\ignorespaces Fama-French factor proxy construction}}{36}{table.caption.23}%
+\contentsline {table}{\numberline {4.7}{\ignorespaces Target portfolio volatility by risk profile}}{37}{table.caption.24}%
+\contentsline {table}{\numberline {4.8}{\ignorespaces Monte Carlo return assumptions}}{38}{table.caption.25}%
+\contentsline {table}{\numberline {4.9}{\ignorespaces Market phase classification}}{39}{table.caption.26}%
+\contentsline {table}{\numberline {4.10}{\ignorespaces Macroeconomic indicators tracked}}{39}{table.caption.27}%
+\contentsline {table}{\numberline {4.11}{\ignorespaces AI advisor configuration}}{40}{table.caption.28}%
+\contentsline {table}{\numberline {4.12}{\ignorespaces AI advisor tool definitions}}{40}{table.caption.29}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Backend technology stack}}{42}{table.caption.30}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Frontend technology stack}}{43}{table.caption.31}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces Infrastructure and deployment stack}}{43}{table.caption.32}%
+\contentsline {table}{\numberline {5.4}{\ignorespaces Complete listing of frontend pages and their features}}{53}{table.5.4}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces System performance metrics}}{55}{table.caption.33}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces Sample signal distribution across the Nifty 500 universe}}{55}{table.caption.34}%
+\contentsline {table}{\numberline {6.3}{\ignorespaces Technical indicator statistics across Nifty 500 universe}}{56}{table.caption.35}%
+\contentsline {table}{\numberline {6.4}{\ignorespaces Random Forest classifier performance (averaged across stocks)}}{57}{table.caption.36}%
+\contentsline {table}{\numberline {6.5}{\ignorespaces ML regression model evaluation metrics (30-day horizon)}}{57}{table.caption.37}%
+\contentsline {table}{\numberline {6.6}{\ignorespaces Top features by importance in ML regression (averaged across stocks)}}{58}{table.caption.39}%
+\contentsline {table}{\numberline {6.7}{\ignorespaces Walk-forward cross-validation performance (5 folds, representative stock)}}{58}{table.caption.41}%
+\contentsline {table}{\numberline {6.8}{\ignorespaces Time-series model selection across tested stocks}}{59}{table.caption.42}%
+\contentsline {table}{\numberline {6.9}{\ignorespaces Sample portfolio optimization results (5-stock portfolio)}}{60}{table.caption.43}%
+\contentsline {table}{\numberline {6.10}{\ignorespaces Sample Monte Carlo wealth projection (moderate risk, 20-year horizon)}}{61}{table.caption.44}%
+\contentsline {table}{\numberline {6.11}{\ignorespaces Feature comparison with existing Indian platforms}}{63}{table.caption.45}%
+\contentsline {table}{\numberline {6.12}{\ignorespaces API endpoint testing results by category}}{64}{table.caption.46}%
+\contentsline {table}{\numberline {6.13}{\ignorespaces Edge case testing results}}{64}{table.6.13}%
+\contentsline {table}{\numberline {6.14}{\ignorespaces Frontend testing results by page}}{65}{table.caption.47}%
+\contentsline {table}{\numberline {6.15}{\ignorespaces Performance benchmark results}}{66}{table.caption.48}%
+\contentsline {table}{\numberline {6.16}{\ignorespaces Cross-browser compatibility results}}{66}{table.caption.49}%
+\contentsline {table}{\numberline {6.17}{\ignorespaces Responsive design breakpoint testing}}{67}{table.caption.50}%
+\contentsline {table}{\numberline {6.18}{\ignorespaces WCAG 2.1 accessibility compliance checklist}}{67}{table.caption.51}%
+\contentsline {table}{\numberline {6.19}{\ignorespaces Data integrity validation against reference tools}}{68}{table.caption.52}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {7.1}{\ignorespaces Objectives achievement summary}}{70}{table.caption.53}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {B.1}{\ignorespaces Complete environment variables reference}}{80}{table.1.B.1}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }

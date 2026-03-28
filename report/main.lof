@@ -1,0 +1,18 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces High-level system architecture of PaisaPro.ai{}}}{18}{figure.caption.2}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Data flow pipeline from external sources to frontend}}{20}{figure.caption.4}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Entity-Relationship diagram for the PaisaPro.ai{} database}}{21}{figure.caption.6}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Use case diagram showing the 14 primary user interactions}}{24}{figure.caption.9}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Simplified class diagram showing key backend services and their dependencies}}{25}{figure.caption.10}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Sequence diagram for AI advisor chat with tool-use loop}}{25}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.7}{\ignorespaces Activity diagram for the daily data refresh pipeline}}{26}{figure.caption.12}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
