@@ -1,10 +1,10 @@
 """
-AI Advisor service — beautiful, reliable, multi-model.
+AI Advisor service — beautiful, reliable, OpenRouter-only.
 
 Strategy:
   1. Inject ALL live data (market, macro, news, portfolio) into system prompt
-  2. ONE Groq call — no tool calling, no loops
-  3. If Groq fails/rate-limited → fall back to Gemini
+  2. ONE OpenRouter call — no tool calling, no loops
+  3. Tries Llama 3.3 70B first, falls back to Gemini 2.0 Flash
   4. If both fail → beautiful cached-data response
   5. Stream response word-by-word
 """
@@ -28,7 +28,7 @@ from ...schemas.financial import (
 
 logger = logging.getLogger(__name__)
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+# ── Configuration ────────────────────────────────────────────────────────────
 
 MAX_HISTORY = 30
 REQUEST_TIMEOUT = 90
@@ -36,6 +36,12 @@ CACHE_TTL = 300
 
 # Response cache
 _response_cache: dict[str, tuple[str, float]] = {}
+
+# OpenRouter models (in order of preference)
+OPENROUTER_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct:free",   # Free Llama, good quality
+    "google/gemini-2.0-flash:free",               # Free Gemini
+]
 
 # ── Input sanitization ────────────────────────────────────────────────────────
 
@@ -265,7 +271,7 @@ def _build_full_context(request: AdvisorChatRequest) -> str:
 # ── Fallback response ─────────────────────────────────────────────────────────
 
 def _generate_fallback_response(request: AdvisorChatRequest) -> str:
-    """Beautiful markdown from cached data when both LLMs are down."""
+    """Beautiful markdown from cached data when all LLMs are down."""
     lines: list[str] = []
     lines.append("## Market Update")
     lines.append("")
@@ -295,53 +301,10 @@ def _generate_fallback_response(request: AdvisorChatRequest) -> str:
     return "\n".join(lines)
 
 
-# ── LLM calls ─────────────────────────────────────────────────────────────────
+# ── OpenRouter call ───────────────────────────────────────────────────────────
 
-async def _call_groq(settings, messages: list) -> Optional[str]:
-    """Call Groq API. Returns reply or None on failure."""
-    try:
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.post(
-                settings.groq_url,
-                headers={"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"},
-                json={"model": settings.groq_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        reply = (data["choices"][0]["message"].get("content") or "").strip()
-        return reply if reply else None
-    except Exception as e:
-        logger.warning("Groq failed: %s", e)
-        return None
-
-
-async def _call_gemini(settings, messages: list) -> Optional[str]:
-    """Call Gemini API. Returns reply or None on failure."""
-    try:
-        contents = []
-        for msg in messages:
-            if msg["role"] == "system":
-                contents.append({"role": "user", "parts": [{"text": f"System: {msg['content']}"}]})
-            elif msg["role"] == "assistant":
-                contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
-            else:
-                contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.gemini_api_key}",
-                json={"contents": contents, "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.7}},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        return reply if reply else None
-    except Exception as e:
-        logger.warning("Gemini failed: %s", e)
-        return None
-
-
-async def _call_openrouter(settings, messages: list) -> Optional[str]:
-    """Call OpenRouter API (OpenAI-compatible). Returns reply or None."""
+async def _call_openrouter(settings, messages: list, model: str) -> Optional[str]:
+    """Call OpenRouter with a specific model. Returns reply or None."""
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
             resp = await client.post(
@@ -352,21 +315,21 @@ async def _call_openrouter(settings, messages: list) -> Optional[str]:
                     "HTTP-Referer": "https://stephenbaraik-paisapro.hf.space",
                     "X-Title": "PaisaPro AI Advisor",
                 },
-                json={"model": settings.openrouter_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7},
+                json={"model": model, "messages": messages, "max_tokens": 4096, "temperature": 0.7},
             )
             resp.raise_for_status()
             data = resp.json()
         reply = (data["choices"][0]["message"].get("content") or "").strip()
         return reply if reply else None
     except Exception as e:
-        logger.warning("OpenRouter failed: %s", e)
+        logger.warning("OpenRouter (%s) failed: %s", model, e)
         return None
 
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
 async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator[str, None]:
-    """Stream AI response. Try Groq → Gemini → fallback."""
+    """Stream AI response. OpenRouter only — tries Llama then Gemini."""
     start = time.time()
     settings = get_settings()
     request.message = sanitize_input(request.message)
@@ -389,20 +352,15 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    # Try Groq
+    # Try each model in order
     reply = None
-    if settings.groq_api_key:
-        reply = await _call_groq(settings, messages)
-
-    # Fallback to Gemini
-    if not reply and settings.gemini_api_key:
-        logger.info("Groq failed, trying Gemini")
-        reply = await _call_gemini(settings, messages)
-
-    # Fallback to OpenRouter
-    if not reply and settings.openrouter_api_key:
-        logger.info("Gemini failed, trying OpenRouter")
-        reply = await _call_openrouter(settings, messages)
+    for model in OPENROUTER_MODELS:
+        if not settings.openrouter_api_key:
+            break
+        reply = await _call_openrouter(settings, messages, model)
+        if reply:
+            logger.info("OpenRouter reply via %s", model)
+            break
 
     # Fallback to cached data
     if not reply:
@@ -421,7 +379,7 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
 # ── Non-streaming ─────────────────────────────────────────────────────────────
 
 async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatResponse:
-    """Non-streaming — Groq → Gemini → fallback."""
+    """Non-streaming — OpenRouter only."""
     start = time.time()
     settings = get_settings()
     request.message = sanitize_input(request.message)
@@ -438,20 +396,14 @@ async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatRespon
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    # Try Groq
+    # Try each model in order
     reply = None
-    if settings.groq_api_key:
-        reply = await _call_groq(settings, messages)
-
-    # Fallback to Gemini
-    if not reply and settings.gemini_api_key:
-        logger.info("Groq failed, trying Gemini")
-        reply = await _call_gemini(settings, messages)
-
-    # Fallback to OpenRouter
-    if not reply and settings.openrouter_api_key:
-        logger.info("Gemini failed, trying OpenRouter")
-        reply = await _call_openrouter(settings, messages)
+    for model in OPENROUTER_MODELS:
+        if not settings.openrouter_api_key:
+            break
+        reply = await _call_openrouter(settings, messages, model)
+        if reply:
+            break
 
     # Fallback to cached data
     if not reply:
