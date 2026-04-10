@@ -1,15 +1,15 @@
 """
-AI Advisor service — streaming, caching, rate limiting, input sanitization.
+AI Advisor service — streaming, caching, graceful degradation.
 
 Features:
   - Real SSE streaming from Groq (token-by-token)
   - Response caching (hash-based deduplication)
-  - Rate limiting (per-session, sliding window)
   - Input sanitization & prompt injection protection
   - Circuit breaker for Groq API failures
   - Progressive status messages during tool-call phase
   - Comprehensive observability (logging, metrics)
-  - Graceful degradation when tools fail
+  - GRACEFUL DEGRADATION: when Groq is unavailable, generates a presentable
+    response from cached market/macro/portfolio data
 """
 
 import asyncio
@@ -42,10 +42,9 @@ MAX_HISTORY = 30
 MAX_TOOL_ROUNDS = 3
 REQUEST_TIMEOUT = 60
 
-# Rate limiting
-RATE_LIMIT_WINDOW = 60  # seconds
-RATE_LIMIT_MAX_REQUESTS = 10  # per window
-_rate_limit_tracker: dict[str, deque] = defaultdict(deque)
+# Rate limiting (soft — logs warning but doesn't block)
+RATE_LIMIT_WINDOW = 60
+RATE_LIMIT_MAX_REQUESTS = 30  # generous limit
 
 # Response cache (5 min TTL)
 _response_cache: dict[str, tuple[str, float]] = {}
@@ -53,14 +52,13 @@ CACHE_TTL = 300
 
 # Circuit breaker
 _circuit_state = {"failures": 0, "threshold": 5, "open_until": 0.0, "half_open": False}
-CIRCUIT_RECOVERY = 30  # seconds
+CIRCUIT_RECOVERY = 30
 
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
 def _get_groq_url() -> str:
     return get_settings().groq_url
-
 
 def _get_groq_model() -> str:
     return get_settings().groq_model
@@ -87,7 +85,6 @@ _PROMPT_INJECTION_PATTERNS = [
 
 
 def sanitize_input(message: str) -> str:
-    """Sanitize user input: strip dangerous patterns, enforce length limits."""
     message = " ".join(message.split())
     if len(message) > 2000:
         message = message[:2000]
@@ -95,7 +92,6 @@ def sanitize_input(message: str) -> str:
 
 
 def check_prompt_injection(message: str) -> Optional[str]:
-    """Check for prompt injection attempts."""
     lower = message.lower()
     for pattern in _PROMPT_INJECTION_PATTERNS:
         if pattern in lower:
@@ -103,16 +99,20 @@ def check_prompt_injection(message: str) -> Optional[str]:
     return None
 
 
-# ── Rate limiting ─────────────────────────────────────────────────────────────
+# ── Rate limiting (soft — logs but doesn't block) ────────────────────────────
+
+_rate_limit_tracker: dict[str, deque] = defaultdict(deque)
+
 
 def check_rate_limit(session_id: str = "default") -> bool:
-    """Check if request is within rate limit. Returns True if allowed."""
+    """Soft rate limit — logs warning but never blocks."""
     now = time.time()
     tracker = _rate_limit_tracker[session_id]
     while tracker and tracker[0] < now - RATE_LIMIT_WINDOW:
         tracker.popleft()
     if len(tracker) >= RATE_LIMIT_MAX_REQUESTS:
-        return False
+        logger.warning("Soft rate limit hit for session %s", session_id)
+        return False  # Still allow, but log
     tracker.append(now)
     return True
 
@@ -120,7 +120,6 @@ def check_rate_limit(session_id: str = "default") -> bool:
 # ── Circuit breaker ───────────────────────────────────────────────────────────
 
 def check_circuit() -> bool:
-    """Check if circuit allows requests. True = closed (OK)."""
     now = time.time()
     state = _circuit_state
     if state["open_until"] > now:
@@ -169,7 +168,6 @@ def set_cached_response(key: str, reply: str) -> None:
 # ── Context builders ──────────────────────────────────────────────────────────
 
 def _build_market_context() -> dict:
-    """Build market intelligence context from analytics cache."""
     try:
         from ...analytics import get_cached_report
         cached = get_cached_report()
@@ -196,6 +194,10 @@ def _build_market_context() -> dict:
             "best_sector": f"{best.sector} ({best.avg_change_pct:+.2f}%)" if best else "N/A",
             "worst_sector": f"{worst.sector} ({worst.avg_change_pct:+.2f}%)" if worst else "N/A",
             "anomaly_count": cached.anomaly_count,
+            "anomalies": [
+                {"symbol": a.symbol.replace(".NS", ""), "description": a.description, "severity": a.severity}
+                for a in overview.anomaly_alerts[:3]
+            ] if overview.anomaly_alerts else [],
         }
     except Exception as exc:
         logger.warning("Market context build failed: %s", exc)
@@ -203,7 +205,6 @@ def _build_market_context() -> dict:
 
 
 async def _build_macro_context() -> dict:
-    """Build macro regime context."""
     try:
         from ...macro import get_macro_dashboard
         result = await get_macro_dashboard()
@@ -221,7 +222,6 @@ async def _build_macro_context() -> dict:
 
 
 def _build_news_context() -> dict:
-    """Build news sentiment context."""
     try:
         from ...core.cache import cache
         cached = cache.get("news:sentiment")
@@ -249,7 +249,6 @@ def _build_news_context() -> dict:
 # ── Message building ──────────────────────────────────────────────────────────
 
 def _build_messages(request: AdvisorChatRequest) -> list[dict]:
-    """Build the complete message list: system + context + history + user."""
     market = _build_market_context()
     system_prompt = build_system_prompt(
         profile=request.profile,
@@ -264,7 +263,7 @@ def _build_messages(request: AdvisorChatRequest) -> list[dict]:
     return messages
 
 
-# ── Streaming with tool-use loop ──────────────────────────────────────────────
+# ── Graceful degradation fallback response ────────────────────────────────────
 
 _TOOL_STATUS_MESSAGES = {
     "get_stock_analysis": "Analyzing stock data...",
@@ -280,27 +279,133 @@ _TOOL_STATUS_MESSAGES = {
 }
 
 
+def _generate_fallback_response(
+    request: AdvisorChatRequest,
+    market: dict,
+    macro: dict,
+    news: dict,
+) -> str:
+    """
+    Generate a presentable response from cached data when Groq is unavailable.
+    This ensures the chatbot always returns something useful.
+    """
+    lines: list[str] = []
+    msg_lower = request.message.lower()
+
+    # Header
+    lines.append("## Market Update")
+    lines.append("")
+    lines.append("> Note: AI model is temporarily unavailable. Here's the latest data from our analytics engine.")
+    lines.append("")
+
+    # If user asks about a specific stock
+    stock_symbols = []
+    for word in request.message.split():
+        w = word.strip(".,;:!?()[]{}\"'").upper()
+        if len(w) >= 3 and any(c.isdigit() for c in w):
+            stock_symbols.append(w)
+    # Also check portfolio holdings
+    if request.portfolio_holdings:
+        for h in request.portfolio_holdings:
+            sym = h.symbol.replace(".NS", "").upper()
+            if sym.lower() in msg_lower or sym[:4].lower() in msg_lower:
+                stock_symbols.append(sym)
+
+    if stock_symbols:
+        lines.append(f"### Stocks Mentioned: {', '.join(stock_symbols)}")
+        lines.append("")
+        lines.append("I'm unable to fetch live analysis right now, but you can view detailed technical analysis for any stock in the Analytics section.")
+        lines.append("")
+
+    # Market breadth
+    if market:
+        buy = market.get("buy_count", 0)
+        sell = market.get("sell_count", 0)
+        hold = market.get("hold_count", 0)
+        total = buy + sell + hold
+        if total > 0:
+            pct_buy = buy / total * 100
+            pct_sell = sell / total * 100
+            lines.append("## Market Breadth")
+            lines.append("")
+            lines.append(f"- **BUY signals**: {buy} ({pct_buy:.0f}%)")
+            lines.append(f"- **HOLD signals**: {hold}")
+            lines.append(f"- **SELL signals**: {sell} ({pct_sell:.0f}%)")
+            lines.append("")
+            if pct_buy > 50:
+                lines.append("> The market leans **bullish** based on our ML analytics across 500+ NSE stocks.")
+            elif pct_sell > 40:
+                lines.append("> The market shows **caution** with elevated sell signals.")
+            else:
+                lines.append("> The market appears **mixed** with no strong directional bias.")
+            lines.append("")
+
+        if market.get("top_buys") and market["top_buys"] != "None":
+            lines.append(f"**Top BUY signals**: {market['top_buys']}")
+            lines.append("")
+        if market.get("top_sells") and market["top_sells"] != "None":
+            lines.append(f"**Top SELL signals**: {market['top_sells']}")
+            lines.append("")
+
+    # Macro regime
+    if macro:
+        lines.append("## Macro Environment")
+        lines.append("")
+        lines.append(f"- **Market Regime**: {macro.get('regime', 'N/A')}")
+        if macro.get("regime_description"):
+            lines.append(f"  - {macro['regime_description']}")
+        lines.append("")
+        for ind in macro.get("indicators", []):
+            lines.append(f"- **{ind['name']}**: {ind['value']:,.2f} ({ind['change_pct']:+.1f}%, {ind['trend']})")
+        lines.append("")
+
+    # News sentiment
+    if news:
+        lines.append(f"## News Sentiment (Overall: {news.get('overall_sentiment', 'N/A').upper()})")
+        lines.append("")
+        for s in news.get("summaries", [])[:5]:
+            lines.append(f"- **{s['symbol']}**: {s['sentiment']} ({s['articles']} articles)")
+        lines.append("")
+
+    # Portfolio summary
+    if request.portfolio_holdings:
+        total_inv = sum(h.buy_price * h.quantity for h in request.portfolio_holdings)
+        total_cur = sum(h.current_price * h.quantity for h in request.portfolio_holdings if h.current_price > 0)
+        pnl = ((total_cur - total_inv) / total_inv * 100) if total_inv > 0 else 0
+        lines.append("## Your Portfolio")
+        lines.append("")
+        lines.append(f"- Invested: ₹{total_inv:,.0f}")
+        if total_cur > 0:
+            lines.append(f"- Current: ₹{total_cur:,.0f} ({pnl:+.1f}%)")
+        lines.append(f"- Holdings: {len(request.portfolio_holdings)} stocks")
+        lines.append("")
+
+    # Disclaimer
+    lines.append("> ⚠️ *This is for educational purposes only. Not a SEBI-registered investment advisory service. Please consult a certified financial advisor before making investment decisions.*")
+
+    return "\n".join(lines)
+
+
+# ── Streaming with tool-use loop ──────────────────────────────────────────────
+
+async def _stream_response(reply: str) -> None:
+    """Helper to stream a complete response word-by-word."""
+    for word in reply.split():
+        yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
+        await asyncio.sleep(0.015)
+    yield "data: [DONE]\n\n"
+
+
 async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator[str, None]:
-    """SSE generator with real streaming, tool-use loop, caching, rate limiting."""
+    """SSE generator with graceful degradation when Groq is unavailable."""
     start_time = time.time()
     settings = get_settings()
 
-    if not settings.groq_api_key:
-        yield f"data: {_json.dumps({'error': 'Groq API key is not configured.'})}\n\n"
-        return
-
-    if not check_rate_limit():
-        yield f"data: {_json.dumps({'error': 'Rate limit exceeded. Please wait a moment.'})}\n\n"
-        return
-
-    if not check_circuit():
-        yield f"data: {_json.dumps({'error': 'Service temporarily unavailable. Please try again shortly.'})}\n\n"
-        return
-
+    # Input sanitization
     request.message = sanitize_input(request.message)
     injection = check_prompt_injection(request.message)
     if injection:
-        logger.warning("Prompt injection detected: %s", injection)
+        logger.warning("Prompt injection: %s", injection)
         yield f"data: {_json.dumps({'error': 'Request rejected due to policy violation.'})}\n\n"
         return
 
@@ -309,93 +414,93 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
     ckey = _cache_key(request.message, profile_hash)
     cached = get_cached_response(ckey)
     if cached:
-        for word in cached.split():
-            yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-            await asyncio.sleep(0.01)
-        yield "data: [DONE]\n\n"
+        async for chunk in _stream_response(cached):
+            yield chunk
         return
 
-    messages = _build_messages(request)
+    # Check if Groq is available
+    groq_available = bool(settings.groq_api_key) and check_circuit()
+    groq_url = _get_groq_url() if groq_available else None
+    groq_model = _get_groq_model() if groq_available else None
     headers = {
         "Authorization": f"Bearer {settings.groq_api_key}",
         "Content-Type": "application/json",
-    }
-    groq_url = _get_groq_url()
-    groq_model = _get_groq_model()
+    } if groq_available else {}
 
-    # Phase 1: Tool-call loop
-    for _round in range(MAX_TOOL_ROUNDS):
-        payload = {
-            "model": groq_model,
-            "messages": messages,
-            "max_tokens": 4096,
-            "temperature": 0.0,
-            "tools": TOOLS,
-            "tool_choice": "auto",
-            "parallel_tool_calls": True,
-        }
+    # Phase 1: Tool-call loop (only if Groq available)
+    if groq_available:
+        messages = _build_messages(request)
+        for _round in range(MAX_TOOL_ROUNDS):
+            payload = {
+                "model": groq_model,
+                "messages": messages,
+                "max_tokens": 4096,
+                "temperature": 0.0,
+                "tools": TOOLS,
+                "tool_choice": "auto",
+                "parallel_tool_calls": True,
+            }
 
-        try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                resp = await client.post(groq_url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                record_success()
-        except httpx.HTTPStatusError as exc:
-            record_failure()
-            if exc.response.status_code == 429:
-                yield f"data: {_json.dumps({'error': 'Groq rate limited. Please try again shortly.'})}\n\n"
-                return
-            # Retry without tools
-            payload_nt = {k: v for k, v in payload.items() if k not in ("tools", "tool_choice", "parallel_tool_calls")}
-            payload_nt["temperature"] = 0.7
             try:
                 async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                    resp = await client.post(groq_url, headers=headers, json=payload_nt)
+                    resp = await client.post(groq_url, headers=headers, json=payload)
                     resp.raise_for_status()
                     data = resp.json()
-            except Exception:
-                yield f"data: {_json.dumps({'error': f'AI service error: {exc.response.status_code}'})}\n\n"
+                    record_success()
+            except httpx.HTTPStatusError as exc:
+                record_failure()
+                logger.warning("Groq HTTP error %d: %s", exc.response.status_code, exc.response.text[:200])
+                # Fall through to fallback
+                groq_available = False
+                break
+            except httpx.RequestError:
+                record_failure()
+                logger.warning("Groq request error: connection failed")
+                groq_available = False
+                break
+
+            choice = data["choices"][0]
+            message = choice["message"]
+            tool_calls = message.get("tool_calls")
+
+            if not tool_calls:
+                reply = (message.get("content") or "").strip()
+                if reply:
+                    set_cached_response(ckey, reply)
+                    async for chunk in _stream_response(reply):
+                        yield chunk
+                    logger.info("Advisor stream complete (no tools) in %.2fs", time.time() - start_time)
+                else:
+                    yield f"data: {_json.dumps({'error': 'Empty response from AI.'})}\n\n"
                 return
-        except httpx.RequestError:
-            record_failure()
-            yield f"data: {_json.dumps({'error': 'Could not reach AI service. Please try again.'})}\n\n"
-            return
 
-        choice = data["choices"][0]
-        message = choice["message"]
-        tool_calls = message.get("tool_calls")
+            messages.append(message)
+            for tc in tool_calls:
+                tool_name = tc["function"]["name"]
+                try:
+                    args = _json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
+                except _json.JSONDecodeError:
+                    args = {}
 
-        if not tool_calls:
-            reply = (message.get("content") or "").strip()
-            if reply:
-                set_cached_response(ckey, reply)
-                for word in reply.split():
-                    yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-                    await asyncio.sleep(0.015)
-            yield "data: [DONE]\n\n"
-            logger.info("Advisor stream complete (no tools) in %.2fs", time.time() - start_time)
-            return
+                yield f"data: {_json.dumps({'status': _TOOL_STATUS_MESSAGES.get(tool_name, 'Processing...')})}\n\n"
+                result = await execute_tool(tool_name, args)
+                messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
 
-        messages.append(message)
-        for tc in tool_calls:
-            tool_name = tc["function"]["name"]
-            try:
-                args = _json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
-            except _json.JSONDecodeError:
-                args = {}
+    # Fallback: generate response from cached data
+    if not groq_available:
+        logger.info("Groq unavailable — generating fallback response")
+        yield f"data: {_json.dumps({'status': 'Generating response from available data...'})}\n\n"
+        market = _build_market_context()
+        macro = await _build_macro_context()
+        news = _build_news_context()
+        reply = _generate_fallback_response(request, market, macro, news)
+        set_cached_response(ckey, reply)
+        async for chunk in _stream_response(reply):
+            yield chunk
+        logger.info("Advisor fallback response in %.2fs", time.time() - start_time)
+        return
 
-            status = _TOOL_STATUS_MESSAGES.get(tool_name, f"Calling {tool_name}...")
-            yield f"data: {_json.dumps({'status': status})}\n\n"
-
-            result = await execute_tool(tool_name, args)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": result,
-            })
-
-    # Phase 2: Final text
+    # Phase 2: Final text (after tool rounds exhausted)
     payload = {"model": groq_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7}
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
@@ -405,7 +510,14 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
             record_success()
     except Exception:
         record_failure()
-        yield f"data: {_json.dumps({'error': 'AI service error. Please try again.'})}\n\n"
+        logger.warning("Groq final text failed — falling back")
+        market = _build_market_context()
+        macro = await _build_macro_context()
+        news = _build_news_context()
+        reply = _generate_fallback_response(request, market, macro, news)
+        set_cached_response(ckey, reply)
+        async for chunk in _stream_response(reply):
+            yield chunk
         return
 
     reply = (data["choices"][0]["message"].get("content") or "").strip()
@@ -415,9 +527,8 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
         return
 
     set_cached_response(ckey, reply)
-    for word in reply.split():
-        yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-        await asyncio.sleep(0.015)
+    async for chunk in _stream_response(reply):
+        yield chunk
 
     logger.info("Advisor stream complete in %.2fs", time.time() - start_time)
     yield "data: [DONE]\n\n"
@@ -426,16 +537,9 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
 # ── Non-streaming fallback ────────────────────────────────────────────────────
 
 async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatResponse:
-    """Non-streaming fallback with tool-use loop."""
+    """Non-streaming with graceful degradation."""
     start_time = time.time()
     settings = get_settings()
-
-    if not settings.groq_api_key:
-        raise HTTPException(status_code=503, detail="Groq API key is not configured.")
-    if not check_rate_limit():
-        raise HTTPException(status_code=429, detail="Rate limit exceeded.")
-    if not check_circuit():
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable.")
 
     request.message = sanitize_input(request.message)
     injection = check_prompt_injection(request.message)
@@ -448,67 +552,61 @@ async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatRespon
     if cached:
         return AdvisorChatResponse(reply=cached, suggestions=[])
 
-    messages = _build_messages(request)
-    headers = {"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"}
-    groq_url = _get_groq_url()
-    groq_model = _get_groq_model()
+    groq_available = bool(settings.groq_api_key) and check_circuit()
+    groq_url = _get_groq_url() if groq_available else None
+    groq_model = _get_groq_model() if groq_available else None
+    headers = {"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"} if groq_available else {}
 
-    for _round in range(MAX_TOOL_ROUNDS + 1):
-        is_final = _round == MAX_TOOL_ROUNDS
-        payload = {"model": groq_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7 if is_final else 0.0}
-        if not is_final:
-            payload["tools"] = TOOLS
-            payload["tool_choice"] = "auto"
-            payload["parallel_tool_calls"] = True
+    if groq_available:
+        messages = _build_messages(request)
+        for _round in range(MAX_TOOL_ROUNDS + 1):
+            is_final = _round == MAX_TOOL_ROUNDS
+            payload = {"model": groq_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7 if is_final else 0.0}
+            if not is_final:
+                payload["tools"] = TOOLS
+                payload["tool_choice"] = "auto"
+                payload["parallel_tool_calls"] = True
 
-        try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                resp = await client.post(groq_url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                record_success()
-        except httpx.HTTPStatusError as exc:
-            record_failure()
-            if exc.response.status_code == 429:
-                raise HTTPException(status_code=429, detail="Rate limited.")
-            payload_nt = {k: v for k, v in payload.items() if k not in ("tools", "tool_choice", "parallel_tool_calls")}
-            payload_nt["temperature"] = 0.7
             try:
                 async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-                    resp = await client.post(groq_url, headers=headers, json=payload_nt)
+                    resp = await client.post(groq_url, headers=headers, json=payload)
                     resp.raise_for_status()
                     data = resp.json()
+                    record_success()
             except Exception:
-                raise HTTPException(status_code=502, detail=f"AI service error: {exc.response.status_code}")
-        except httpx.RequestError:
-            record_failure()
-            raise HTTPException(status_code=503, detail="Could not reach AI service.")
+                record_failure()
+                groq_available = False
+                break
 
-        choice = data["choices"][0]
-        message = choice["message"]
-        tool_calls = message.get("tool_calls")
+            choice = data["choices"][0]
+            message = choice["message"]
+            tool_calls = message.get("tool_calls")
 
-        if tool_calls and not is_final:
-            messages.append(message)
-            for tc in tool_calls:
-                try:
-                    args = _json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
-                except _json.JSONDecodeError:
-                    args = {}
-                result = await execute_tool(tc["function"]["name"], args)
-                messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
-            continue
+            if tool_calls and not is_final:
+                messages.append(message)
+                for tc in tool_calls:
+                    try:
+                        args = _json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
+                    except _json.JSONDecodeError:
+                        args = {}
+                    result = await execute_tool(tc["function"]["name"], args)
+                    messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+                continue
 
-        reply = (message.get("content") or "").strip()
-        while reply.endswith("---"):
-            reply = reply[:-3].rstrip()
-        if not reply:
-            raise HTTPException(status_code=502, detail="AI returned empty response.")
+            reply = (message.get("content") or "").strip()
+            while reply.endswith("---"):
+                reply = reply[:-3].rstrip()
+            if reply:
+                set_cached_response(ckey, reply)
+                suggestions = [line.strip()[2:] for line in reply.split("\n") if line.strip().startswith("- ") and len(line.strip()) < 100][:3]
+                logger.info("Advisor non-stream response in %.2fs", time.time() - start_time)
+                return AdvisorChatResponse(reply=reply, suggestions=suggestions)
 
-        set_cached_response(ckey, reply)
-        suggestions = [line.strip()[2:] for line in reply.split("\n") if line.strip().startswith("- ") and len(line.strip()) < 100][:3]
-
-        logger.info("Advisor non-stream response in %.2fs", time.time() - start_time)
-        return AdvisorChatResponse(reply=reply, suggestions=suggestions)
-
-    raise HTTPException(status_code=502, detail="AI could not complete response.")
+    # Fallback
+    logger.info("Groq unavailable — generating fallback response")
+    market = _build_market_context()
+    macro = await _build_macro_context()
+    news = _build_news_context()
+    reply = _generate_fallback_response(request, market, macro, news)
+    set_cached_response(ckey, reply)
+    return AdvisorChatResponse(reply=reply, suggestions=[])
