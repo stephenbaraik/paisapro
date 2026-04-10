@@ -318,16 +318,14 @@ async def _call_groq(settings, messages: list) -> Optional[str]:
 async def _call_gemini(settings, messages: list) -> Optional[str]:
     """Call Gemini API. Returns reply or None on failure."""
     try:
-        # Convert messages to Gemini format
         contents = []
         for msg in messages:
             if msg["role"] == "system":
-                contents.append({"role": "user", "parts": [{"text": f"System instructions: {msg['content']}"}]})
+                contents.append({"role": "user", "parts": [{"text": f"System: {msg['content']}"}]})
             elif msg["role"] == "assistant":
                 contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
             else:
                 contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
-
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
             resp = await client.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.gemini_api_key}",
@@ -339,6 +337,29 @@ async def _call_gemini(settings, messages: list) -> Optional[str]:
         return reply if reply else None
     except Exception as e:
         logger.warning("Gemini failed: %s", e)
+        return None
+
+
+async def _call_openrouter(settings, messages: list) -> Optional[str]:
+    """Call OpenRouter API (OpenAI-compatible). Returns reply or None."""
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+            resp = await client.post(
+                settings.openrouter_url,
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://stephenbaraik-paisapro.hf.space",
+                    "X-Title": "PaisaPro AI Advisor",
+                },
+                json={"model": settings.openrouter_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        reply = (data["choices"][0]["message"].get("content") or "").strip()
+        return reply if reply else None
+    except Exception as e:
+        logger.warning("OpenRouter failed: %s", e)
         return None
 
 
@@ -378,9 +399,14 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
         logger.info("Groq failed, trying Gemini")
         reply = await _call_gemini(settings, messages)
 
+    # Fallback to OpenRouter
+    if not reply and settings.openrouter_api_key:
+        logger.info("Gemini failed, trying OpenRouter")
+        reply = await _call_openrouter(settings, messages)
+
     # Fallback to cached data
     if not reply:
-        logger.warning("Both LLMs failed, using fallback")
+        logger.warning("All LLMs failed, using fallback")
         reply = _generate_fallback_response(request)
 
     set_cached_response(ckey, reply)
@@ -422,9 +448,14 @@ async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatRespon
         logger.info("Groq failed, trying Gemini")
         reply = await _call_gemini(settings, messages)
 
+    # Fallback to OpenRouter
+    if not reply and settings.openrouter_api_key:
+        logger.info("Gemini failed, trying OpenRouter")
+        reply = await _call_openrouter(settings, messages)
+
     # Fallback to cached data
     if not reply:
-        logger.warning("Both LLMs failed, using fallback")
+        logger.warning("All LLMs failed, using fallback")
         reply = _generate_fallback_response(request)
 
     set_cached_response(ckey, reply)

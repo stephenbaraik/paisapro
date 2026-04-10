@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
+    # OpenRouter (third fallback — many free models)
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    openrouter_url: str = "https://openrouter.ai/api/v1/chat/completions"
+
     # Alpha Vantage
     alpha_vantage_api_key: str = ""
 
