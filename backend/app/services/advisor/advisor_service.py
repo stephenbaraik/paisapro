@@ -23,8 +23,8 @@ from typing import AsyncGenerator, Optional
 import httpx
 from fastapi import HTTPException
 
-from ..core.config import get_settings
-from ..schemas.financial import (
+from ...core.config import get_settings
+from ...schemas.financial import (
     UserFinancialProfile,
     AdvisorChatRequest,
     AdvisorChatResponse,
@@ -142,6 +142,7 @@ def record_failure() -> None:
 def record_success() -> None:
     state = _circuit_state
     state["failures"] = 0
+    state["open_until"] = 0.0
     state["half_open"] = False
 
 
@@ -170,7 +171,7 @@ def set_cached_response(key: str, reply: str) -> None:
 def _build_market_context() -> dict:
     """Build market intelligence context from analytics cache."""
     try:
-        from ..analytics import get_cached_report
+        from ...analytics import get_cached_report
         cached = get_cached_report()
         if not cached:
             return {}
@@ -204,7 +205,7 @@ def _build_market_context() -> dict:
 async def _build_macro_context() -> dict:
     """Build macro regime context."""
     try:
-        from ..macro import get_macro_dashboard
+        from ...macro import get_macro_dashboard
         result = await get_macro_dashboard()
         return {
             "regime": result.market_regime,
@@ -222,7 +223,7 @@ async def _build_macro_context() -> dict:
 def _build_news_context() -> dict:
     """Build news sentiment context."""
     try:
-        from ..core.cache import cache
+        from ...core.cache import cache
         cached = cache.get("news:sentiment")
         if not cached:
             return {}

@@ -7,7 +7,7 @@ and provides clear tool-use guidance.
 
 from typing import Optional
 
-from ..schemas.financial import (
+from ...schemas.financial import (
     UserFinancialProfile,
     PortfolioHoldingContext,
     WatchlistItemContext,
