@@ -9,7 +9,6 @@ Features:
   - 30-message conversation history window
 """
 
-import asyncio
 import json as _json
 import logging
 from typing import Optional
@@ -610,14 +609,18 @@ def _build_messages(request: AdvisorChatRequest) -> list[dict]:
 
 async def stream_advisor_response(request: AdvisorChatRequest):
     """
-    SSE generator — streams tokens to the client.
+    SSE generator — streams tokens to the client using TRUE Groq streaming.
 
-    Strategy: use NON-streaming Groq requests throughout (to avoid httpx
-    aiter_lines() bug in async generators), then simulate streaming by
-    yielding the response word-by-word with small delays.
+    Time-to-first-token: ~500 ms (Groq starts sending tokens immediately).
 
-    Phase 1: Non-streaming tool-call rounds — execute tools and loop.
-    Phase 2: Non-streaming final text request — yield word-by-word.
+    Strategy:
+      Each round makes a STREAMING request to Groq.
+      - If Groq returns content tokens  → forward them to the client live, return.
+      - If Groq returns tool calls      → buffer them, execute, loop.
+      - On tool_use_failed              → retry once without tools (force_final).
+
+    Works around the old httpx aiter_lines() bug by using aiter_text() with
+    manual line splitting — safe to yield inside async-with context managers.
     """
     settings = get_settings()
     if not settings.groq_api_key:
@@ -630,121 +633,112 @@ async def stream_advisor_response(request: AdvisorChatRequest):
         "Content-Type": "application/json",
     }
 
-    # ── Phase 1: Non-streaming tool-call rounds ──────────────────────────────
-    tool_use_retries = 0
-    for _round in range(MAX_TOOL_ROUNDS):
+    force_final = False  # set True after tool_use_failed to skip tools
+
+    for _round in range(MAX_TOOL_ROUNDS + 1):
+        is_final = (_round == MAX_TOOL_ROUNDS) or force_final
+
         payload: dict = {
             "model": GROQ_MODEL,
             "messages": messages,
             "max_tokens": 4096,
-            "temperature": 0.0,  # deterministic for reliable tool calling
-            "tools": TOOLS,
-            "tool_choice": "auto",
-            "parallel_tool_calls": False,
+            "temperature": 0.7 if is_final else 0.0,
+            "stream": True,
         }
+        if not is_final:
+            payload["tools"] = TOOLS
+            payload["tool_choice"] = "auto"
+            payload["parallel_tool_calls"] = False
 
+        # tool-call accumulator for this round
+        tool_buf: dict[int, dict] = {}
+        got_content = False
+        http_err = False
+
+        # Use manually managed client so finally-close works in async generators
+        client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0))
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(GROQ_URL, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-        except httpx.HTTPStatusError as exc:
-            if (
-                exc.response.status_code == 400
-                and "tool_use_failed" in exc.response.text
-            ):
-                # Retry once within Phase 1 before falling to Phase 2
-                if tool_use_retries < 1:
-                    tool_use_retries += 1
-                    logger.info(
-                        "tool_use_failed — retrying Phase 1 (attempt %d)",
-                        tool_use_retries,
-                    )
-                    continue
-                # Fall through to Phase 2 without tools
-                logger.info("tool_use_failed — exhausted retries, falling to Phase 2")
-                break
-            yield f"data: {_json.dumps({'error': f'Groq error: {exc.response.status_code}'})}\n\n"
-            return
+            async with client.stream("POST", GROQ_URL, headers=headers, json=payload) as resp:
+                if resp.status_code != 200:
+                    body = await resp.aread()
+                    if b"tool_use_failed" in body and not is_final:
+                        logger.info("tool_use_failed — retrying without tools")
+                        force_final = True
+                        http_err = True
+                    else:
+                        yield f"data: {_json.dumps({'error': f'Groq error: {resp.status_code}'})}\n\n"
+                        return
+                else:
+                    line_buf = ""
+                    async for chunk in resp.aiter_text():
+                        line_buf += chunk
+                        while "\n" in line_buf:
+                            line, line_buf = line_buf.split("\n", 1)
+                            line = line.strip()
+                            if not line.startswith("data: "):
+                                continue
+                            raw = line[6:].strip()
+                            if raw == "[DONE]":
+                                break
+                            try:
+                                obj = _json.loads(raw)
+                                delta = obj["choices"][0].get("delta", {})
+
+                                # ── Content token → forward immediately ──
+                                if delta.get("content"):
+                                    got_content = True
+                                    yield f"data: {_json.dumps({'token': delta['content']})}\n\n"
+
+                                # ── Tool-call delta → accumulate ──
+                                if delta.get("tool_calls"):
+                                    for tc in delta["tool_calls"]:
+                                        idx = tc["index"]
+                                        if idx not in tool_buf:
+                                            tool_buf[idx] = {
+                                                "id": "",
+                                                "type": "function",
+                                                "function": {"name": "", "arguments": ""},
+                                            }
+                                        if tc.get("id"):
+                                            tool_buf[idx]["id"] = tc["id"]
+                                        fn = tc.get("function") or {}
+                                        if fn.get("name"):
+                                            tool_buf[idx]["function"]["name"] += fn["name"]
+                                        if fn.get("arguments"):
+                                            tool_buf[idx]["function"]["arguments"] += fn["arguments"]
+
+                            except (_json.JSONDecodeError, KeyError, IndexError):
+                                continue
+
         except httpx.RequestError:
             yield f"data: {_json.dumps({'error': 'Could not reach Groq. Please try again.'})}\n\n"
             return
+        finally:
+            await client.aclose()
 
-        choice = data["choices"][0]
-        message = choice["message"]
-        tool_calls = message.get("tool_calls")
+        if http_err:
+            continue  # retry as final round with force_final=True
 
-        if not tool_calls:
-            # Model chose to reply with text instead of calling tools.
-            # Simulate streaming word-by-word.
-            reply = (message.get("content") or "").strip()
-            if reply:
-                words = reply.split(" ")
-                for i, word in enumerate(words):
-                    token = word if i == 0 else " " + word
-                    yield f"data: {_json.dumps({'token': token})}\n\n"
-                    if i % 3 == 2:
-                        await asyncio.sleep(0.02)
+        # Content was streamed → done
+        if got_content or is_final:
             yield "data: [DONE]\n\n"
             return
 
-        # Execute tool calls and append results to messages
-        messages.append(message)
-        for tc in tool_calls:
+        # No content and no tool calls → fall through to final round
+        if not tool_buf:
+            force_final = True
+            continue
+
+        # Execute tool calls, append results, loop for next round
+        tool_list = [tool_buf[i] for i in sorted(tool_buf)]
+        messages.append({"role": "assistant", "content": None, "tool_calls": tool_list})
+        for tc in tool_list:
             try:
-                args = (
-                    _json.loads(tc["function"]["arguments"])
-                    if tc["function"]["arguments"]
-                    else {}
-                )
+                args = _json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
             except _json.JSONDecodeError:
                 args = {}
             result = await _execute_tool(tc["function"]["name"], args)
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tc["id"],
-                    "content": result,
-                }
-            )
-        # Continue to next round
-
-    # ── Phase 2: Get final text response and simulate streaming ────────────
-    # We use a non-streaming request to avoid the httpx aiter_lines() bug
-    # when yielding inside nested async context managers, then yield the
-    # response word-by-word to simulate streaming to the frontend.
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": messages,
-        "max_tokens": 4096,
-        "temperature": 0.7,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(GROQ_URL, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-    except httpx.HTTPStatusError as exc:
-        yield f"data: {_json.dumps({'error': f'Groq error: {exc.response.status_code}'})}\n\n"
-        return
-    except httpx.RequestError:
-        yield f"data: {_json.dumps({'error': 'Could not reach Groq. Please try again.'})}\n\n"
-        return
-
-    reply = (data["choices"][0]["message"].get("content") or "").strip()
-    if not reply:
-        yield f"data: {_json.dumps({'error': 'AI returned an empty response.'})}\n\n"
-        yield "data: [DONE]\n\n"
-        return
-
-    # Simulate streaming: yield word-by-word with small delays
-    words = reply.split(" ")
-    for i, word in enumerate(words):
-        token = word if i == 0 else " " + word
-        yield f"data: {_json.dumps({'token': token})}\n\n"
-        if i % 3 == 2:
-            await asyncio.sleep(0.02)
+            messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
 
     yield "data: [DONE]\n\n"
 
