@@ -169,7 +169,7 @@ def set_cached_response(key: str, reply: str) -> None:
 
 def _build_market_context() -> dict:
     try:
-        from ...analytics import get_cached_report
+        from ..analytics import get_cached_report
         cached = get_cached_report()
         if not cached:
             return {}
@@ -206,7 +206,7 @@ def _build_market_context() -> dict:
 
 async def _build_macro_context() -> dict:
     try:
-        from ...macro import get_macro_dashboard
+        from ..macro import get_macro_dashboard
         result = await get_macro_dashboard()
         return {
             "regime": result.market_regime,

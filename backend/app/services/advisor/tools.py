@@ -169,11 +169,11 @@ async def execute_tool(name: str, arguments: dict) -> str:
 
 async def _handle_stock_analysis(args: dict) -> str:
     """Get detailed technical + risk analysis for a single stock."""
-    from ...analytics import get_cached_report
-    from ...market_data import get_price_df, get_nifty_df
-    from ...technical import compute_technical_signals
-    from ...risk import compute_risk_metrics
-    from ...universe import get_name, get_sector
+    from ..analytics import get_cached_report
+    from ..market_data import get_price_df, get_nifty_df
+    from ..technical import compute_technical_signals
+    from ..risk import compute_risk_metrics
+    from ..universe import get_name, get_sector
 
     symbol = args.get("symbol", "")
     if not symbol.endswith(".NS"):
@@ -238,7 +238,7 @@ async def _handle_stock_analysis(args: dict) -> str:
 
 async def _handle_macro_dashboard(args: dict) -> str:
     """Get macro indicators and market regime."""
-    from ...macro import get_macro_dashboard
+    from ..macro import get_macro_dashboard
 
     result = await get_macro_dashboard()
     return json.dumps({
@@ -259,7 +259,7 @@ async def _handle_macro_dashboard(args: dict) -> str:
 
 async def _handle_news_sentiment(args: dict) -> str:
     """Get news sentiment for Indian stocks."""
-    from ...news_sentiment import get_news_sentiment
+    from ..news_sentiment import get_news_sentiment
 
     result = await get_news_sentiment()
     return json.dumps({
@@ -286,7 +286,7 @@ async def _handle_news_sentiment(args: dict) -> str:
 
 async def _handle_screener(args: dict) -> str:
     """Screen/filter stocks."""
-    from ...analytics import screen_stocks
+    from ..analytics import screen_stocks
 
     result = screen_stocks(
         sector=args.get("sector"),
@@ -327,11 +327,11 @@ async def _handle_stock_comparison(args: dict) -> str:
     # Normalize symbols
     symbols = [s if s.endswith(".NS") else f"{s}.NS" for s in symbols]
 
-    from ...analytics import get_cached_report
-    from ...market_data import get_price_df
-    from ...technical import compute_technical_signals
-    from ...risk import compute_risk_metrics
-    from ...universe import get_name, get_sector
+    from ..analytics import get_cached_report
+    from ..market_data import get_price_df
+    from ..technical import compute_technical_signals
+    from ..risk import compute_risk_metrics
+    from ..universe import get_name, get_sector
     import pandas as pd
 
     comparison = []
@@ -384,7 +384,7 @@ async def _handle_stock_comparison(args: dict) -> str:
 
 async def _handle_top_gainers_losers(args: dict) -> str:
     """Get today's biggest gainers and losers."""
-    from ...analytics import get_cached_report
+    from ..analytics import get_cached_report
 
     report = get_cached_report()
     if not report:
@@ -428,7 +428,7 @@ async def _handle_top_gainers_losers(args: dict) -> str:
 
 async def _handle_sector_analysis(args: dict) -> str:
     """Get sector-level performance analysis."""
-    from ...analytics import get_cached_report
+    from ..analytics import get_cached_report
 
     report = get_cached_report()
     if not report:
@@ -472,7 +472,7 @@ async def _handle_sector_analysis(args: dict) -> str:
 
 async def _handle_timeseries_forecast(args: dict) -> str:
     """Get historical price trends + simple trend analysis."""
-    from ...market_data import get_price_df
+    from ..market_data import get_price_df
 
     symbol = args.get("symbol", "")
     if not symbol.endswith(".NS"):
