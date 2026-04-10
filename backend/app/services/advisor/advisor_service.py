@@ -9,7 +9,6 @@ Strategy:
   5. Stream response word-by-word
 """
 
-import asyncio
 import hashlib
 import json as _json
 import logging
@@ -390,50 +389,112 @@ async def _call_openrouter(settings, messages: list, model: str) -> Optional[str
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
 async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator[str, None]:
-    """Stream AI response. OpenRouter only — tries Llama then Gemini."""
+    """
+    Stream AI response using TRUE OpenRouter SSE streaming.
+    Time-to-first-token: ~500 ms. No artificial delays.
+
+    - Cache hit  → send full reply instantly as one token.
+    - Cache miss → stream tokens live from OpenRouter, try each model in order.
+    - All fail   → stream fallback response from cached market data.
+    """
     start = time.time()
     settings = get_settings()
     request.message = sanitize_input(request.message)
 
-    # Cache check
+    # ── Cache hit: send instantly ─────────────────────────────────────────────
     phash = hashlib.md5(request.profile.model_dump_json().encode()).hexdigest()[:16] if request.profile else "none"
     ckey = _cache_key(request.message, phash)
     cached = get_cached_response(ckey)
     if cached:
-        for word in cached.split():
-            yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-            await asyncio.sleep(0.015)
+        yield f"data: {_json.dumps({'token': cached})}\n\n"
         yield "data: [DONE]\n\n"
         return
 
-    # Build messages
+    # ── Build messages ────────────────────────────────────────────────────────
     system_prompt = _build_full_context(request)
-    messages = [{"role": "system", "content": system_prompt}]
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
     for msg in request.conversation_history[-MAX_HISTORY:]:
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    # Try each model in order
-    reply = None
-    for model in OPENROUTER_MODELS:
-        if not settings.openrouter_api_key:
-            break
-        reply = await _call_openrouter(settings, messages, model)
-        if reply:
-            logger.info("OpenRouter reply via %s", model)
-            break
-
-    # Fallback to cached data
-    if not reply:
-        logger.warning("All LLMs failed, using fallback")
+    if not settings.openrouter_api_key:
         reply = _generate_fallback_response(request)
+        yield f"data: {_json.dumps({'token': reply})}\n\n"
+        yield "data: [DONE]\n\n"
+        return
 
-    set_cached_response(ckey, reply)
-    for word in reply.split():
-        yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-        await asyncio.sleep(0.015)
+    or_headers = {
+        "Authorization": f"Bearer {settings.openrouter_api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://stephenbaraik-paisapro.hf.space",
+        "X-Title": "PaisaPro AI Advisor",
+    }
 
-    logger.info("Advisor response in %.2fs", time.time() - start)
+    # ── Try each model; stream tokens as they arrive ──────────────────────────
+    reply_chunks: list[str] = []
+
+    for model in OPENROUTER_MODELS:
+        reply_chunks = []
+        model_ok = False
+
+        client = httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=10.0))
+        try:
+            async with client.stream(
+                "POST",
+                settings.openrouter_url,
+                headers=or_headers,
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": 4096,
+                    "temperature": 0.7,
+                    "stream": True,
+                },
+            ) as resp:
+                if resp.status_code != 200:
+                    await resp.aread()
+                    logger.warning("OpenRouter (%s) HTTP %d — trying next", model, resp.status_code)
+                else:
+                    line_buf = ""
+                    async for chunk in resp.aiter_text():
+                        line_buf += chunk
+                        while "\n" in line_buf:
+                            line, line_buf = line_buf.split("\n", 1)
+                            line = line.strip()
+                            if not line.startswith("data: "):
+                                continue
+                            raw = line[6:].strip()
+                            if raw == "[DONE]":
+                                model_ok = True
+                                break
+                            try:
+                                obj = _json.loads(raw)
+                                token = (obj["choices"][0]["delta"].get("content") or "")
+                                if token:
+                                    reply_chunks.append(token)
+                                    yield f"data: {_json.dumps({'token': token})}\n\n"
+                            except (_json.JSONDecodeError, KeyError, IndexError):
+                                pass
+                    if reply_chunks:
+                        model_ok = True
+        except httpx.RequestError as e:
+            logger.warning("OpenRouter (%s) request error: %s", model, e)
+        finally:
+            await client.aclose()
+
+        if model_ok:
+            logger.info("OpenRouter streamed via %s in %.2fs", model, time.time() - start)
+            break
+
+    # ── Fallback if all models failed ─────────────────────────────────────────
+    if not reply_chunks:
+        logger.warning("All OpenRouter models failed — using fallback")
+        reply = _generate_fallback_response(request)
+        yield f"data: {_json.dumps({'token': reply})}\n\n"
+    else:
+        set_cached_response(ckey, "".join(reply_chunks))
+
+    logger.info("Advisor stream done in %.2fs", time.time() - start)
     yield "data: [DONE]\n\n"
 
 
