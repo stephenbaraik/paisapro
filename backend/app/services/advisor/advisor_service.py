@@ -38,9 +38,11 @@ CACHE_TTL = 300
 _response_cache: dict[str, tuple[str, float]] = {}
 
 # OpenRouter models (in order of preference)
+# NOTE: These model IDs work without the :free suffix on OpenRouter
 OPENROUTER_MODELS = [
-    "meta-llama/llama-3.3-70b-instruct:free",   # Free Llama, good quality
-    "google/gemini-2.0-flash:free",               # Free Gemini
+    "meta-llama/llama-3.3-70b-instruct",      # Best quality Llama
+    "meta-llama/llama-3.1-70b-instruct",       # Fallback Llama 70B
+    "meta-llama/llama-3.1-8b-instruct",        # Fast fallback Llama 8B
 ]
 
 # ── Input sanitization ────────────────────────────────────────────────────────
