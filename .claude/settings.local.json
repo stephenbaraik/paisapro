@@ -34,7 +34,8 @@
       "Bash(python -c \":*)",
       "Bash(curl -s \"http://localhost:8001/api/v1/analytics/screener?sort_by=composite_score&limit=30\")",
       "Bash(uv run:*)",
-      "Bash(taskkill //PID 17128 //F)"
+      "Bash(taskkill //PID 17128 //F)",
+      "Bash(grep -n \"advisor\" \"C:/Users/Stevie/Documents/Projects/Ai Advisor/frontend/src\"/*.css)"
     ]
   },
   "enableAllProjectMcpServers": true,
