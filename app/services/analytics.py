@@ -19,7 +19,6 @@ from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
-import yfinance as yf
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, IsolationForest
@@ -321,26 +320,12 @@ def _add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def _fetch_yfinance(symbol: str, period: str = "1y") -> pd.DataFrame:
     """
-    Fetch daily OHLCV from Yahoo Finance (1d interval).
+    Fetch daily OHLCV from Yahoo Finance (1d interval) with retries.
     Returns DataFrame with columns: date, open, high, low, close, volume.
     Returns empty DataFrame on any error.
     """
-    try:
-        raw = yf.Ticker(symbol).history(period=period, interval="1d", auto_adjust=True)
-        if raw is None or raw.empty:
-            logger.warning(f"yfinance: no data for {symbol}")
-            return pd.DataFrame()
-        df = raw.reset_index()
-        df.rename(columns={"Date": "date", "Open": "open", "High": "high",
-                            "Low": "low", "Close": "close", "Volume": "volume"}, inplace=True)
-        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
-        df = df[["date", "open", "high", "low", "close", "volume"]].copy()
-        df = df[df["close"] > 0].reset_index(drop=True)
-        logger.info(f"yfinance: fetched {len(df)} rows for {symbol}")
-        return df
-    except Exception as exc:
-        logger.error(f"yfinance error for {symbol}: {exc}")
-        return pd.DataFrame()
+    from ..utils.yfinance_utils import fetch_ticker_history
+    return fetch_ticker_history(symbol, period=period)
 
 
 def _get_cached_df(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:

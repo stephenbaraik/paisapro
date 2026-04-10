@@ -9,7 +9,7 @@ pydantic-settings==2.2.1
 # AI (OpenRouter via httpx — no extra package needed)
 
 # Financial data
-yfinance==0.2.40
+yfinance==0.2.64
 pandas==2.2.2
 numpy==1.26.4
 

@@ -17,7 +17,6 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 from ..core.cache import cache
 from ..data.stock_repository import (
@@ -90,6 +89,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def _fetch_yfinance(symbol: str, period: str = "max") -> pd.DataFrame:
     try:
+        import yfinance as yf
         raw = yf.Ticker(symbol).history(period=period, interval="1d", auto_adjust=True)
         if raw is None or raw.empty:
             logger.warning("yfinance: no data for %s", symbol)

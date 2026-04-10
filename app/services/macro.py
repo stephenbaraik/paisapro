@@ -1,16 +1,16 @@
 """
 Macro Dashboard — FII/DII proxy, India VIX, USD/INR, 10Y yield, Nifty 50.
 
-Uses yfinance for market data. FII/DII flows approximated via ETF proxy.
+Uses yfinance for market data with retries. FII/DII flows approximated via ETF proxy.
 Correlates macro indicators against Nifty 50 returns.
 """
 
 import time
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from datetime import datetime, timezone
 
+from ..utils.yfinance_utils import fetch_ticker_history
 from ..schemas.advanced_analytics import (
     MacroIndicator, MacroTimeSeries, MacroTimeSeriesPoint,
     MacroCorrelation, MacroDashboardResponse,
@@ -38,19 +38,6 @@ DESCRIPTIONS = {
     "Crude Oil":   "WTI crude oil — import cost driver for India",
     "Bank Nifty":  "Banking sector index — financial sector health",
 }
-
-
-def _fetch_ticker_history(ticker: str, period: str = "1y") -> pd.DataFrame:
-    try:
-        data = yf.Ticker(ticker).history(period=period, interval="1d", auto_adjust=True)
-        if data.empty:
-            return pd.DataFrame()
-        data = data.reset_index()
-        data.rename(columns={"Date": "date", "Close": "close"}, inplace=True)
-        data["date"] = pd.to_datetime(data["date"]).dt.tz_localize(None)
-        return data[["date", "close"]].dropna()
-    except Exception:
-        return pd.DataFrame()
 
 
 def _trend(change_pct: float) -> str:
@@ -111,7 +98,7 @@ async def get_macro_dashboard(force: bool = False) -> MacroDashboardResponse:
     returns_dict: dict[str, pd.Series] = {}
 
     for name, ticker in MACRO_TICKERS.items():
-        df = _fetch_ticker_history(ticker, "1y")
+        df = fetch_ticker_history(ticker, "1y")
         if df.empty or len(df) < 5:
             continue
 

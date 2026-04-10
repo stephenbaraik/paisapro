@@ -56,3 +56,7 @@ backend/.git/
 
 # Team photos (binary — served via Netlify, not needed on HF)
 frontend/public/team/
+
+# Reports & presentations (binary — keep local only)
+report/*.pdf
+presentation.pdf

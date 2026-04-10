@@ -2,9 +2,9 @@
 Macro Dashboard — India VIX, USD/INR, Nifty 50, Gold, Crude Oil, Bank Nifty.
 
 Data pipeline:
-  1. yfinance → Supabase macro_prices table  (ingest, runs locally or on schedule)
-  2. Supabase → API response                 (serve, works on HF Spaces)
-  3. yfinance direct as fallback             (if Supabase is empty)
+  1. Supabase macro_prices table → API response  (serve first, works on HF Spaces)
+  2. yfinance direct as fallback                  (with retries, works locally)
+  3. Ingest pipeline: yfinance → Supabase         (run on schedule)
 """
 
 import asyncio
@@ -13,10 +13,10 @@ from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 from ..core.cache import cache
 from ..data.macro_repository import get_macro_prices, save_macro_prices
+from ..utils.yfinance_utils import fetch_batch_download
 from ..schemas.advanced_analytics import (
     MacroIndicator, MacroTimeSeries, MacroTimeSeriesPoint,
     MacroCorrelation, MacroDashboardResponse,
@@ -48,46 +48,15 @@ DESCRIPTIONS = {
 }
 
 
-# ── yfinance fetch ────────────────────────────────────────────────────────────
-
-def _batch_download(tickers: list[str], period: str = "1y") -> dict[str, pd.DataFrame]:
-    result: dict[str, pd.DataFrame] = {}
-    try:
-        raw = yf.download(
-            tickers, period=period, interval="1d",
-            auto_adjust=True, threads=True, progress=False,
-        )
-        if raw.empty:
-            logger.warning("Macro: yf.download returned empty for all tickers")
-            return result
-
-        for ticker in tickers:
-            try:
-                if len(tickers) == 1:
-                    df = raw[["Close"]].copy()
-                else:
-                    df = raw["Close"][[ticker]].copy()
-                df = df.dropna().reset_index()
-                df.columns = ["date", "close"]
-                df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
-                if len(df) >= 5:
-                    result[ticker] = df
-            except Exception as e:
-                logger.warning("Macro: failed to extract %s: %s", ticker, e)
-    except Exception as e:
-        logger.error("Macro: yf.download failed: %s", e)
-    return result
-
-
 # ── Ingest pipeline ───────────────────────────────────────────────────────────
 
 def refresh_macro_data() -> int:
     """
-    Fetch macro data from yfinance and save to Supabase.
+    Fetch macro data from yfinance (with retries) and save to Supabase.
     Returns number of tickers successfully ingested.
     """
     tickers = list(MACRO_TICKERS.values())
-    ticker_dfs = _batch_download(tickers, "1y")
+    ticker_dfs = fetch_batch_download(tickers, "1y")
 
     success = 0
     for name, ticker in MACRO_TICKERS.items():
@@ -222,26 +191,35 @@ async def get_macro_dashboard(force: bool = False) -> MacroDashboardResponse:
     ticker_dfs: dict[str, pd.DataFrame] = {}
 
     # 1. Try Supabase first (works on HF Spaces where yfinance is blocked)
-    supabase_dfs = await asyncio.to_thread(
-        lambda: {t: get_macro_prices(t) for t in tickers}
-    )
-    for ticker, df in supabase_dfs.items():
-        if not df.empty and len(df) >= 5:
-            ticker_dfs[ticker] = df
+    try:
+        supabase_dfs = await asyncio.to_thread(
+            lambda: {t: get_macro_prices(t) for t in tickers}
+        )
+        for ticker, df in supabase_dfs.items():
+            if not df.empty and len(df) >= 5:
+                ticker_dfs[ticker] = df
+    except Exception as exc:
+        logger.warning("Macro: Supabase read failed: %s", exc)
 
     if len(ticker_dfs) >= 3:
         logger.info("Macro: serving %d/%d tickers from Supabase", len(ticker_dfs), len(tickers))
     else:
-        # 2. Fallback: yfinance (works locally, may fail on cloud)
+        # 2. Fallback: yfinance with retries (works locally, may fail on cloud)
         logger.info("Macro: Supabase has %d tickers, trying yfinance fallback…", len(ticker_dfs))
-        yf_dfs = await asyncio.to_thread(_batch_download, tickers, "1y")
+        yf_dfs = await asyncio.to_thread(fetch_batch_download, tickers, "1y")
         for ticker, df in yf_dfs.items():
             if ticker not in ticker_dfs:
                 ticker_dfs[ticker] = df
         if yf_dfs:
-            await asyncio.to_thread(
-                lambda: [save_macro_prices(t, df) for t, df in yf_dfs.items()]
-            )
+            try:
+                await asyncio.to_thread(
+                    lambda: [save_macro_prices(t, df) for t, df in yf_dfs.items()]
+                )
+            except Exception as exc:
+                logger.warning("Macro: failed to save yfinance data to Supabase: %s", exc)
+
+    if not ticker_dfs:
+        logger.error("Macro: no data available from any source")
 
     result = _build_response(ticker_dfs)
     cache.set(_CACHE_KEY, result, _CACHE_TTL)
