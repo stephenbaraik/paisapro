@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     # Groq (LLM provider)
     groq_api_key: str
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_url: str = "https://api.groq.com/openai/v1/chat/completions"
 
     # Alpha Vantage
     alpha_vantage_api_key: str = ""
