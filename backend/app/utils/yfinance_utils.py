@@ -18,21 +18,9 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
-# yfinance session is reused across calls for better connection pooling
-_session: Optional[yf.utils.Cache] = None
-
 # Configuration
 MAX_RETRIES = 3
 RETRY_DELAY = 2.0  # seconds (base for exponential backoff)
-REQUEST_TIMEOUT = 30  # seconds
-
-
-def _get_session():
-    """Get or create a yfinance session with proper configuration."""
-    global _session
-    if _session is None:
-        _session = yf.utils.Cache()
-    return _session
 
 
 def fetch_ticker_history(
