@@ -305,7 +305,7 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
         return
 
     # Cache check
-    profile_hash = str(hash(request.profile)) if request.profile else "none"
+    profile_hash = hashlib.md5(request.profile.model_dump_json().encode()).hexdigest()[:16] if request.profile else "none"
     ckey = _cache_key(request.message, profile_hash)
     cached = get_cached_response(ckey)
     if cached:
@@ -442,7 +442,7 @@ async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatRespon
     if injection:
         raise HTTPException(status_code=400, detail="Request rejected due to policy violation.")
 
-    profile_hash = str(hash(request.profile)) if request.profile else "none"
+    profile_hash = hashlib.md5(request.profile.model_dump_json().encode()).hexdigest()[:16] if request.profile else "none"
     ckey = _cache_key(request.message, profile_hash)
     cached = get_cached_response(ckey)
     if cached:
