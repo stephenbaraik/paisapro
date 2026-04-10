@@ -16,10 +16,14 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    # Groq (LLM provider)
+    # Groq (primary LLM)
     groq_api_key: str
     groq_model: str = "llama-3.3-70b-versatile"
     groq_url: str = "https://api.groq.com/openai/v1/chat/completions"
+
+    # Google Gemini (fallback LLM)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
 
     # Alpha Vantage
     alpha_vantage_api_key: str = ""

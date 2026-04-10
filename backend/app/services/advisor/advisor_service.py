@@ -1,11 +1,12 @@
 """
-AI Advisor service — simple, reliable, beautiful.
+AI Advisor service — beautiful, reliable, multi-model.
 
 Strategy:
-  1. Inject ALL live data (market, macro, news, portfolio) directly into system prompt
-  2. Make ONE Groq call — no tool calling, no multi-turn loops
-  3. Stream response word-by-word
-  4. If Groq fails, fall back to a well-formatted cached-data response
+  1. Inject ALL live data (market, macro, news, portfolio) into system prompt
+  2. ONE Groq call — no tool calling, no loops
+  3. If Groq fails/rate-limited → fall back to Gemini
+  4. If both fail → beautiful cached-data response
+  5. Stream response word-by-word
 """
 
 import asyncio
@@ -13,7 +14,6 @@ import hashlib
 import json as _json
 import logging
 import time
-from collections import defaultdict, deque
 from typing import AsyncGenerator, Optional
 
 import httpx
@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 
 MAX_HISTORY = 30
 REQUEST_TIMEOUT = 90
-
-# Response cache (5 min TTL)
-_response_cache: dict[str, tuple[str, float]] = {}
 CACHE_TTL = 300
+
+# Response cache
+_response_cache: dict[str, tuple[str, float]] = {}
 
 # ── Input sanitization ────────────────────────────────────────────────────────
 
@@ -63,44 +63,87 @@ def set_cached_response(key: str, reply: str) -> None:
     _response_cache[key] = (reply, time.time())
 
 
+# ── System prompt ─────────────────────────────────────────────────────────────
+
+SYSTEM_RULES = """\
+# ROLE
+You are **PaisaPro AI Advisor** — an expert Indian investment advisor inside PaisaPro.ai.
+Help users make informed financial decisions using the real-time data provided below.
+
+# CONTEXT
+- Markets: NSE, BSE, Nifty, Sensex, Indian mutual funds, SIPs, PPF, NPS, ELSS
+- All values in INR (₹)
+- Ground every answer in the data provided. Never invent numbers.
+- If data is missing, say so honestly.
+- Always consider the user's risk profile and portfolio.
+- Be educational — explain the "why" behind every suggestion.
+
+# FORMAT — THIS IS CRITICAL
+Your output is rendered as Markdown. Follow these rules STRICTLY:
+
+1. **Every section starts with a heading** using `## ` (two hashes + space).
+2. **Always use bullet lists** (`- `) for points. Never use numbered lists unless the user explicitly asks for steps.
+3. **Each bullet is ONE short line** — max 12-15 words. Never put multiple sentences on one line.
+4. **Put one blank line** between every heading, list, paragraph, and blockquote.
+5. **Keep paragraphs to 1-2 sentences max.** Break long thoughts into bullets.
+6. **Use bold** (`**text**`) only for key terms, amounts, or stock names — never entire sentences.
+7. **Use italics** (`*text*`) only for emphasis on single words.
+8. **Never use inline code** (backticks) unless showing a specific number or ticker symbol.
+9. **End every response** with this exact blockquote on its own line:
+
+> ⚠️ *This is for educational purposes only. Not a SEBI-registered investment advisory service.*
+
+# BAD FORMAT EXAMPLE (never do this)
+To determine how much you should invest in ELSS, let's break it down. 1. Section 80C Limit: The total deduction is limited to ₹1.5 lakhs. 2. Your Investable Surplus: You have ₹50,000/month which translates to ₹6 lakhs/year. 3. Tax Savings Goal: Since you want to save tax under 80C, we'll focus on utilizing the ₹1.5 lakhs limit.
+
+# GOOD FORMAT EXAMPLE (always do this)
+## How Much to Invest in ELSS
+
+Here is the breakdown:
+
+- **Section 80C limit**: ₹1.5 lakhs per year
+- **Your investable surplus**: ₹50,000/month (₹6 lakhs/year)
+- **Recommended ELSS investment**: ₹1.5 lakhs (full limit)
+- **Monthly SIP equivalent**: ₹12,500/month
+
+## Why ELSS
+
+- Lock-in period of 3 years — shorter than PPF
+- Tax deduction under Section 80C
+- Equity-linked — higher growth potential
+- Matches your **aggressive** risk profile
+
+> ⚠️ *This is for educational purposes only. Not a SEBI-registered investment advisory service.*
+
+# STYLE
+- Use simple, clear language. No jargon without explanation.
+- Be encouraging but realistic.
+- When recommending, explain the reasoning.
+- Use tables only when comparing 3+ items side by side.
+"""
+
+
 # ── Context builders ──────────────────────────────────────────────────────────
 
 def _build_full_context(request: AdvisorChatRequest) -> str:
-    """Build a rich system prompt with ALL live data injected."""
-    parts: list[str] = []
+    """Build system prompt: rules + live data."""
+    parts: list[str] = [SYSTEM_RULES]
 
-    # ── Role ──────────────────────────────────────────────────────────
-    parts.append("""# ROLE
-
-You are **PaisaPro AI Advisor** — an expert Indian investment advisor built into PaisaPro.ai.
-Help users make informed financial decisions using the real-time data below.
-
-## Rules
-- Indian markets: NSE, BSE, Nifty, Sensex, Indian mutual funds, SIPs, PPF, NPS, ELSS
-- All values in INR (₹)
-- Ground your advice in the data provided. Never invent prices or signals.
-- If data is missing, say so.
-- Educational first — explain concepts, don't just give answers.
-- Consider the user's risk profile and portfolio.
-- End every response with this exact blockquote:
-
-> ⚠️ *This is for educational purposes only. Not a SEBI-registered investment advisory service.*
-""")
-
-    # ── User profile ──────────────────────────────────────────────────
+    # User profile
     profile = request.profile
     if profile:
         surplus = profile.monthly_income - profile.monthly_expenses
-        parts.append(f"""## User Financial Profile
-- Monthly Income: ₹{profile.monthly_income:,.0f}
-- Monthly Expenses: ₹{profile.monthly_expenses:,.0f}
-- Investable Surplus: ₹{surplus:,.0f}/month
-- Current Savings: ₹{profile.current_savings:,.0f}
-- Age: {profile.age} years
-- Risk Tolerance: {profile.risk_profile.value.capitalize()}
+        parts.append(f"""\n## User Financial Profile
+
+- **Monthly income**: ₹{profile.monthly_income:,.0f}
+- **Monthly expenses**: ₹{profile.monthly_expenses:,.0f}
+- **Investable surplus**: ₹{surplus:,.0f}/month
+- **Current savings**: ₹{profile.current_savings:,.0f}
+- **Age**: {profile.age} years
+- **Risk tolerance**: {profile.risk_profile.value.capitalize()}
 """)
 
-    # ── Portfolio ─────────────────────────────────────────────────────
+    # Portfolio
     if request.portfolio_holdings:
         total_inv = sum(h.buy_price * h.quantity for h in request.portfolio_holdings)
         total_cur = sum(h.current_price * h.quantity for h in request.portfolio_holdings if h.current_price > 0)
@@ -110,36 +153,39 @@ Help users make informed financial decisions using the real-time data below.
             v = h.current_price * h.quantity if h.current_price > 0 else h.buy_price * h.quantity
             sectors[h.sector or "Unknown"] = sectors.get(h.sector or "Unknown", 0) + v
         total_val = sum(sectors.values()) or 1
-        holdings_lines = "\n".join(
-            f"  - {h.symbol.replace('.NS', '')}: {h.quantity:.0f} shares, ₹{h.current_price:,.0f} ({h.pnl_pct:+.1f}%)"
+        holdings = "\n".join(
+            f"  - {h.symbol.replace('.NS', '')}: {h.quantity:.0f} shares at ₹{h.current_price:,.0f} ({h.pnl_pct:+.1f}%)"
             for h in sorted(request.portfolio_holdings, key=lambda x: x.pnl_pct, reverse=True)
         )
-        sector_lines = "\n".join(
+        sector_alloc = "\n".join(
             f"  - {sec}: {val/total_val*100:.0f}%"
             for sec, val in sorted(sectors.items(), key=lambda x: x[1], reverse=True)
         )
-        parts.append(f"""## User's Portfolio
-- Total Invested: ₹{total_inv:,.0f}
-- Current Value: ₹{total_cur:,.0f} ({pnl:+.1f}%)
-- Holdings: {len(request.portfolio_holdings)} stocks
+        parts.append(f"""\n## User's Portfolio
 
-{holdings_lines}
+- **Total invested**: ₹{total_inv:,.0f}
+- **Current value**: ₹{total_cur:,.0f} ({pnl:+.1f}%)
+- **Holdings**: {len(request.portfolio_holdings)} stocks
+
+### Stocks Held
+{holdings}
 
 ### Sector Allocation
-{sector_lines}
+{sector_alloc}
 """)
 
-    # ── Watchlist ─────────────────────────────────────────────────────
+    # Watchlist
     if request.watchlist:
-        wl_lines = "\n".join(
+        wl = "\n".join(
             f"  - {w.symbol.replace('.NS', '')}: ₹{w.current_price:,.0f} ({w.daily_change_pct:+.1f}%)"
             for w in request.watchlist
         )
-        parts.append(f"""## Watchlist
-{wl_lines}
+        parts.append(f"""\n## Watchlist
+
+{wl}
 """)
 
-    # ── Market intelligence ───────────────────────────────────────────
+    # Market intelligence
     try:
         from ..analytics import get_cached_report
         cached = get_cached_report()
@@ -156,55 +202,59 @@ Help users make informed financial decisions using the real-time data below.
             )[:5]
             best = max(ov.sector_heatmap, key=lambda s: s.avg_change_pct) if ov.sector_heatmap else None
             worst = min(ov.sector_heatmap, key=lambda s: s.avg_change_pct) if ov.sector_heatmap else None
-            buys_str = "\n".join(f"  - {a.symbol.replace('.NS', '')} ({a.technical_signals.confidence_score:.0f}%)" for a in top_buys) or "None"
-            sells_str = "\n".join(f"  - {a.symbol.replace('.NS', '')} ({a.technical_signals.confidence_score:.0f}%)" for a in top_sells) or "None"
+            buys = "\n".join(f"  - {a.symbol.replace('.NS', '')} ({a.technical_signals.confidence_score:.0f}% confidence)" for a in top_buys) or "None"
+            sells = "\n".join(f"  - {a.symbol.replace('.NS', '')} ({a.technical_signals.confidence_score:.0f}% confidence)" for a in top_sells) or "None"
             best_sector = f"{best.sector} ({best.avg_change_pct:+.2f}%)" if best else "N/A"
             worst_sector = f"{worst.sector} ({worst.avg_change_pct:+.2f}%)" if worst else "N/A"
-            parts.append(f"""## Live Market Intelligence
-- Market Breadth: {br.get('buy', 0)} BUY | {br.get('hold', 0)} HOLD | {br.get('sell', 0)} SELL
-- Strongest Sector: {best_sector}
-- Weakest Sector: {worst_sector}
+            parts.append(f"""\n## Live Market Intelligence
+
+- **Market breadth**: {br.get('buy', 0)} BUY | {br.get('hold', 0)} HOLD | {br.get('sell', 0)} SELL
+- **Strongest sector**: {best_sector}
+- **Weakest sector**: {worst_sector}
 
 ### Top BUY Signals
-{buys_str}
+{buys}
 
 ### Top SELL Signals
-{sells_str}
+{sells}
 """)
     except Exception as e:
         logger.warning("Market context failed: %s", e)
 
-    # ── Macro ─────────────────────────────────────────────────────────
+    # Macro
     try:
         from ...core.cache import cache
         macro = cache.get("macro:dashboard")
         if macro:
-            ind_lines = "\n".join(
+            inds = "\n".join(
                 f"  - **{ind.name}**: {ind.value:,.2f} ({ind.change_pct:+.1f}%, {ind.trend})"
                 for ind in macro.indicators
             )
-            parts.append(f"""## Macro Environment
-- **Market Regime**: {macro.market_regime}
+            parts.append(f"""\n## Macro Environment
+
+- **Market regime**: {macro.market_regime}
 - {macro.regime_description}
 
-{ind_lines}
+### Indicators
+{inds}
 """)
     except Exception as e:
         logger.warning("Macro context failed: %s", e)
 
-    # ── News ──────────────────────────────────────────────────────────
+    # News
     try:
         from ...core.cache import cache
         news = cache.get("news:sentiment")
         if news:
-            news_lines = "\n".join(
-                f"  - **{s.symbol}**: {s.sentiment_label} ({s.article_count} articles, +{s.positive_count}/-{s.negative_count})"
+            nl = "\n".join(
+                f"  - **{s.symbol}**: {s.sentiment_label} ({s.article_count} articles)"
                 for s in news.summaries[:8]
             )
-            parts.append(f"""## News Sentiment
-- Overall: {news.overall_sentiment.upper()} (score: {news.overall_score:+.2f})
+            parts.append(f"""\n## News Sentiment
 
-{news_lines}
+- **Overall**: {news.overall_sentiment.upper()} (score: {news.overall_score:+.2f})
+
+{nl}
 """)
     except Exception as e:
         logger.warning("News context failed: %s", e)
@@ -215,23 +265,20 @@ Help users make informed financial decisions using the real-time data below.
 # ── Fallback response ─────────────────────────────────────────────────────────
 
 def _generate_fallback_response(request: AdvisorChatRequest) -> str:
-    """Generate a beautiful markdown response from cached data when Groq is down."""
+    """Beautiful markdown from cached data when both LLMs are down."""
     lines: list[str] = []
-
     lines.append("## Market Update")
     lines.append("")
-    lines.append("*AI model is temporarily unavailable. Here's the latest data available:*")
+    lines.append("*AI model is temporarily unavailable. Here's the latest data:*")
     lines.append("")
 
-    # Portfolio
     if request.portfolio_holdings:
-        total_inv = sum(h.buy_price * h.quantity for h in request.portfolio_holdings)
-        total_cur = sum(h.current_price * h.quantity for h in request.portfolio_holdings if h.current_price > 0)
-        pnl = ((total_cur - total_inv) / total_inv * 100) if total_inv > 0 else 0
-        lines.append(f"**Portfolio**: ₹{total_inv:,.0f} invested → ₹{total_cur:,.0f} ({pnl:+.1f}%)")
+        ti = sum(h.buy_price * h.quantity for h in request.portfolio_holdings)
+        tc = sum(h.current_price * h.quantity for h in request.portfolio_holdings if h.current_price > 0)
+        pnl = ((tc - ti) / ti * 100) if ti > 0 else 0
+        lines.append(f"- **Portfolio**: ₹{ti:,.0f} → ₹{tc:,.0f} ({pnl:+.1f}%)")
         lines.append("")
 
-    # Macro
     try:
         from ...core.cache import cache
         macro = cache.get("macro:dashboard")
@@ -244,22 +291,66 @@ def _generate_fallback_response(request: AdvisorChatRequest) -> str:
     except Exception:
         pass
 
-    # Disclaimer
     lines.append("> ⚠️ *This is for educational purposes only. Not a SEBI-registered investment advisory service.*")
-
     return "\n".join(lines)
+
+
+# ── LLM calls ─────────────────────────────────────────────────────────────────
+
+async def _call_groq(settings, messages: list) -> Optional[str]:
+    """Call Groq API. Returns reply or None on failure."""
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+            resp = await client.post(
+                settings.groq_url,
+                headers={"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"},
+                json={"model": settings.groq_model, "messages": messages, "max_tokens": 4096, "temperature": 0.7},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        reply = (data["choices"][0]["message"].get("content") or "").strip()
+        return reply if reply else None
+    except Exception as e:
+        logger.warning("Groq failed: %s", e)
+        return None
+
+
+async def _call_gemini(settings, messages: list) -> Optional[str]:
+    """Call Gemini API. Returns reply or None on failure."""
+    try:
+        # Convert messages to Gemini format
+        contents = []
+        for msg in messages:
+            if msg["role"] == "system":
+                contents.append({"role": "user", "parts": [{"text": f"System instructions: {msg['content']}"}]})
+            elif msg["role"] == "assistant":
+                contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
+            else:
+                contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
+
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+            resp = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.gemini_api_key}",
+                json={"contents": contents, "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.7}},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        return reply if reply else None
+    except Exception as e:
+        logger.warning("Gemini failed: %s", e)
+        return None
 
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
 async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator[str, None]:
-    """Stream AI response. ONE Groq call. Fallback if Groq fails."""
+    """Stream AI response. Try Groq → Gemini → fallback."""
     start = time.time()
     settings = get_settings()
-
     request.message = sanitize_input(request.message)
 
-    # Cache
+    # Cache check
     phash = hashlib.md5(request.profile.model_dump_json().encode()).hexdigest()[:16] if request.profile else "none"
     ckey = _cache_key(request.message, phash)
     cached = get_cached_response(ckey)
@@ -270,71 +361,43 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
         yield "data: [DONE]\n\n"
         return
 
-    # Build system prompt with ALL data
+    # Build messages
     system_prompt = _build_full_context(request)
-    messages = [
-        {"role": "system", "content": system_prompt},
-    ]
-    # Add conversation history
-    if request.conversation_history:
-        for msg in request.conversation_history[-MAX_HISTORY:]:
-            messages.append({"role": msg.role, "content": msg.content})
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in request.conversation_history[-MAX_HISTORY:]:
+        messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    headers = {"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"}
-    groq_url = settings.groq_url
-    groq_model = settings.groq_model
+    # Try Groq
+    reply = None
+    if settings.groq_api_key:
+        reply = await _call_groq(settings, messages)
 
-    if not settings.groq_api_key:
+    # Fallback to Gemini
+    if not reply and settings.gemini_api_key:
+        logger.info("Groq failed, trying Gemini")
+        reply = await _call_gemini(settings, messages)
+
+    # Fallback to cached data
+    if not reply:
+        logger.warning("Both LLMs failed, using fallback")
         reply = _generate_fallback_response(request)
-        set_cached_response(ckey, reply)
-        for word in reply.split():
-            yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-            await asyncio.sleep(0.015)
-        yield "data: [DONE]\n\n"
-        return
 
-    # ONE Groq call — no tools, no loops
-    try:
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.post(groq_url, headers=headers, json={
-                "model": groq_model,
-                "messages": messages,
-                "max_tokens": 4096,
-                "temperature": 0.7,
-            })
-            resp.raise_for_status()
-            data = resp.json()
+    set_cached_response(ckey, reply)
+    for word in reply.split():
+        yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
+        await asyncio.sleep(0.015)
 
-        reply = (data["choices"][0]["message"].get("content") or "").strip()
-        if not reply:
-            raise ValueError("Empty response")
-
-        set_cached_response(ckey, reply)
-        for word in reply.split():
-            yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-            await asyncio.sleep(0.015)
-
-        logger.info("Advisor response in %.2fs", time.time() - start)
-        yield "data: [DONE]\n\n"
-
-    except Exception as e:
-        logger.warning("Groq failed (%s), using fallback", e)
-        reply = _generate_fallback_response(request)
-        set_cached_response(ckey, reply)
-        for word in reply.split():
-            yield f"data: {_json.dumps({'token': word + ' '})}\n\n"
-            await asyncio.sleep(0.015)
-        yield "data: [DONE]\n\n"
+    logger.info("Advisor response in %.2fs", time.time() - start)
+    yield "data: [DONE]\n\n"
 
 
 # ── Non-streaming ─────────────────────────────────────────────────────────────
 
 async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatResponse:
-    """Non-streaming — ONE Groq call."""
+    """Non-streaming — Groq → Gemini → fallback."""
     start = time.time()
     settings = get_settings()
-
     request.message = sanitize_input(request.message)
 
     phash = hashlib.md5(request.profile.model_dump_json().encode()).hexdigest()[:16] if request.profile else "none"
@@ -349,34 +412,22 @@ async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatRespon
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    headers = {"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"}
+    # Try Groq
+    reply = None
+    if settings.groq_api_key:
+        reply = await _call_groq(settings, messages)
 
-    if not settings.groq_api_key:
+    # Fallback to Gemini
+    if not reply and settings.gemini_api_key:
+        logger.info("Groq failed, trying Gemini")
+        reply = await _call_gemini(settings, messages)
+
+    # Fallback to cached data
+    if not reply:
+        logger.warning("Both LLMs failed, using fallback")
         reply = _generate_fallback_response(request)
-        return AdvisorChatResponse(reply=reply, suggestions=[])
 
-    try:
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-            resp = await client.post(settings.groq_url, headers=headers, json={
-                "model": settings.groq_model,
-                "messages": messages,
-                "max_tokens": 4096,
-                "temperature": 0.7,
-            })
-            resp.raise_for_status()
-            data = resp.json()
-
-        reply = (data["choices"][0]["message"].get("content") or "").strip()
-        if not reply:
-            raise ValueError("Empty response")
-
-        set_cached_response(ckey, reply)
-        suggestions = [line.strip()[2:] for line in reply.split("\n") if line.strip().startswith("- ") and len(line.strip()) < 100][:3]
-        logger.info("Advisor non-stream in %.2fs", time.time() - start)
-        return AdvisorChatResponse(reply=reply, suggestions=suggestions)
-
-    except Exception as e:
-        logger.warning("Groq failed (%s), fallback", e)
-        reply = _generate_fallback_response(request)
-        set_cached_response(ckey, reply)
-        return AdvisorChatResponse(reply=reply, suggestions=[])
+    set_cached_response(ckey, reply)
+    suggestions = [line.strip()[2:] for line in reply.split("\n") if line.strip().startswith("- ") and len(line.strip()) < 100][:3]
+    logger.info("Advisor non-stream in %.2fs", time.time() - start)
+    return AdvisorChatResponse(reply=reply, suggestions=suggestions)
