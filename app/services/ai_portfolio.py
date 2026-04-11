@@ -112,9 +112,6 @@ async def ai_build_portfolio(
     """Build a portfolio using OpenRouter LLM + analytics cache data."""
     settings = get_settings()
 
-    if not settings.openrouter_api_key:
-        raise RuntimeError("OpenRouter API key is not configured.")
-
     # Serve from cache if available
     ckey = _cache_key(investment_amount, risk_profile)
     cached_result = _get_cached_build(ckey)
@@ -147,27 +144,48 @@ async def ai_build_portfolio(
         "X-Title": "PaisaPro AI Advisor",
     }
 
+    # Build ordered provider list: OpenRouter first (no daily cap), Groq as fallback
+    providers: list[tuple[str, dict, str]] = []  # (url, headers, model)
+
+    if settings.openrouter_api_key:
+        or_headers = {
+            "Authorization": f"Bearer {settings.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://stephenbaraik-paisapro.hf.space",
+            "X-Title": "PaisaPro AI Advisor",
+        }
+        for model in OPENROUTER_MODELS:
+            providers.append((settings.openrouter_url, or_headers, model))
+
+    # Groq fallback — llama-3.1-8b-instant has a separate quota from 70B
+    groq_headers = {
+        "Authorization": f"Bearer {settings.groq_api_key}",
+        "Content-Type": "application/json",
+    }
+    providers.append(("https://api.groq.com/openai/v1/chat/completions", groq_headers, "llama-3.1-8b-instant"))
+
     data = None
-    for model in OPENROUTER_MODELS:
+    for url, req_headers, model in providers:
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 resp = await client.post(
-                    settings.openrouter_url,
-                    headers=headers,
+                    url,
+                    headers=req_headers,
                     json={"model": model, "messages": messages, "max_tokens": 2048, "temperature": 0.2},
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                logger.info("Portfolio built via OpenRouter model: %s", model)
+                logger.info("Portfolio built via %s model: %s", "OpenRouter" if "openrouter" in url else "Groq", model)
                 break
         except httpx.HTTPStatusError as exc:
-            logger.warning("OpenRouter %s HTTP %d — trying next", model, exc.response.status_code)
+            logger.warning("%s %s HTTP %d — trying next", url, model, exc.response.status_code)
             continue
         except httpx.RequestError as exc:
-            raise RuntimeError(f"Could not reach OpenRouter: {exc}")
+            logger.warning("Request error %s: %s — trying next", model, exc)
+            continue
 
     if data is None:
-        raise RuntimeError("All OpenRouter models failed. Please try again.")
+        raise RuntimeError("All AI providers failed. Please try again in a moment.")
 
     raw = (data["choices"][0]["message"].get("content") or "").strip()
 
