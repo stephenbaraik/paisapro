@@ -1,262 +1,132 @@
 """
-AI-powered portfolio builder.
-
-Uses Groq LLM + live market intelligence to suggest stocks and quantities
-based on the user's investment amount and risk tolerance.
+AI-powered portfolio builder - OpenRouter primary, Groq fallback.
 """
-
-import json
-import logging
-import httpx
+import json, logging, time, httpx
 from ..core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+OPENROUTER_MODELS = ["meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-3.1-8b-instruct"]
+_build_cache: dict = {}
+CACHE_TTL = 600
 
+def _cache_key(amt, risk): return f"{round(amt/50000)*50000}:{risk.lower()}"
 
-def _market_snapshot() -> str:
-    """Build a concise market snapshot for the LLM from the analytics cache."""
+def _get_cached_build(key):
+    if key in _build_cache:
+        r, ts = _build_cache[key]
+        if time.time()-ts < CACHE_TTL: return r
+        del _build_cache[key]
+
+def _set_cached_build(key, r): _build_cache[key] = (r, time.time())
+
+def _market_snapshot():
     try:
-        from .analytics import get_cached_report, _get_cached_df
-
+        from .analytics import get_cached_report
         cached = get_cached_report()
-        if cached is None:
-            return "No market data available."
-
-        lines = []
-
-        # All stocks with BUY signal, sorted by confidence
-        buy_stocks = [
-            a for a in cached.stock_analyses
-            if a.technical_signals.composite_signal.value == "BUY"
-        ]
-        buy_stocks.sort(key=lambda a: a.technical_signals.confidence_score, reverse=True)
-
-        hold_stocks = [
-            a for a in cached.stock_analyses
-            if a.technical_signals.composite_signal.value == "HOLD"
-        ]
-        hold_stocks.sort(key=lambda a: a.technical_signals.confidence_score, reverse=True)
-
-        lines.append("=== STOCKS WITH BUY SIGNAL ===")
-        for a in buy_stocks:
-            sym = a.symbol.replace(".NS", "")
-            rm = a.risk_metrics
-            price = a.technical_signals.current_price
-            lines.append(
-                f"- {sym} ({a.company_name}) | Sector: {a.sector} | "
-                f"Price: {price:.2f} | Confidence: {a.technical_signals.confidence_score:.0f}% | "
-                f"Sharpe: {rm.sharpe_ratio:.2f} | MaxDD: {rm.max_drawdown:.1%} | "
-                f"Beta: {rm.beta:.2f} | Vol: {rm.volatility:.1%}"
-            )
-
-        lines.append("\n=== STOCKS WITH HOLD SIGNAL ===")
-        for a in hold_stocks[:10]:
-            sym = a.symbol.replace(".NS", "")
-            rm = a.risk_metrics
-            price = a.technical_signals.current_price
-            lines.append(
-                f"- {sym} ({a.company_name}) | Sector: {a.sector} | "
-                f"Price: {price:.2f} | Confidence: {a.technical_signals.confidence_score:.0f}% | "
-                f"Sharpe: {rm.sharpe_ratio:.2f} | MaxDD: {rm.max_drawdown:.1%} | "
-                f"Beta: {rm.beta:.2f} | Vol: {rm.volatility:.1%}"
-            )
-
-        # Sector performance
-        overview = cached.market_overview
-        if overview.sector_heatmap:
-            lines.append("\n=== SECTOR PERFORMANCE ===")
-            for s in sorted(overview.sector_heatmap, key=lambda x: x.avg_change_pct, reverse=True):
-                lines.append(f"- {s.sector}: {s.avg_change_pct:+.2f}% ({s.stock_count} stocks)")
-
-        # Anomalies as warnings
-        if overview.anomaly_alerts:
-            lines.append("\n=== ANOMALY WARNINGS ===")
-            for a in overview.anomaly_alerts[:5]:
-                lines.append(f"- {a.symbol.replace('.NS','')}: {a.description} [{a.severity}]")
-
-        return "\n".join(lines)
-    except Exception as e:
-        logger.warning("Failed to build market snapshot: %s", e)
-        return "Market data temporarily unavailable."
-
-
-SYSTEM_PROMPT = """You are an expert Indian equity portfolio constructor built into PaisaPro.ai.
-Your job: given the user's investment amount and risk profile, select the best stocks and allocate quantities to build an optimal portfolio.
-
-Rules:
-- ONLY pick from the stocks listed in the market data provided. Do NOT invent symbols.
-- For conservative: prefer high-Sharpe, low-volatility, low-beta stocks. Pick 8-12 stocks. Diversify broadly across sectors.
-- For moderate: balanced mix of growth and value. Pick 7-10 stocks. Diversify across at least 4 sectors.
-- For aggressive: high-confidence BUY signals with strong momentum. Pick 5-8 stocks. At least 3 sectors.
-- IMPORTANT: You MUST pick at least 5 stocks. Spread the allocation, do not over-concentrate.
-- Allocate rupee amounts per stock, then calculate quantity = floor(allocation / current_price).
-- No single stock should exceed 20% of total investment.
-- Use current market prices from the data provided.
-- The sum of all allocations must be between 90% and 98% of the investment amount.
-- Prioritize stocks with BUY signal first, then HOLD stocks with high Sharpe ratios.
-
-You MUST respond with ONLY valid JSON in this exact format â€” no markdown, no explanation outside JSON:
-{
-  "picks": [
-    {
-      "symbol": "RELIANCE",
-      "company_name": "Reliance Industries",
-      "sector": "Energy",
-      "current_price": 1234.56,
-      "quantity": 10,
-      "allocation": 12345.60,
-      "weight_pct": 12.3,
-      "reason": "Strong BUY signal with 78% confidence, low volatility, sector leader"
-    }
-  ],
-  "strategy_summary": "Brief 2-3 sentence summary of the portfolio strategy",
-  "risk_notes": "Key risks to be aware of",
-  "expected_sectors": {"Energy": 25.0, "IT": 20.0},
-  "total_allocated": 95000,
-  "cash_remaining": 5000
-}"""
-
-
-async def ai_build_portfolio(
-    investment_amount: float,
-    risk_profile: str = "moderate",
-) -> dict:
-    """Call the LLM with market data to generate stock picks."""
-    settings = get_settings()
-    if not settings.groq_api_key:
-        raise RuntimeError("Groq API key is not configured.")
-
-    snapshot = _market_snapshot()
-
-    user_prompt = f"""Build me a portfolio with these parameters:
-- Investment Amount: Rs {investment_amount:,.0f}
-- Risk Profile: {risk_profile.upper()}
-
-Here is the current market data for Indian stocks:
-
-{snapshot}
-
-Respond with ONLY the JSON object. No markdown fences, no extra text."""
-
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
-    ]
-
+        if cached is not None:
+            lines = []
+            buys = sorted([a for a in cached.stock_analyses if a.technical_signals.composite_signal.value=="BUY"], key=lambda a: a.technical_signals.confidence_score, reverse=True)[:20]
+            holds = sorted([a for a in cached.stock_analyses if a.technical_signals.composite_signal.value=="HOLD"], key=lambda a: a.technical_signals.confidence_score, reverse=True)[:5]
+            if buys:
+                lines.append("BUY signals:")
+                for a in buys:
+                    sym=a.symbol.replace(".NS",""); lines.append(f"  {sym} ({a.company_name}) sector={a.sector} price={a.technical_signals.current_price:.0f} conf={a.technical_signals.confidence_score:.0f}%")
+            if holds:
+                lines.append("HOLD signals:")
+                for a in holds:
+                    sym=a.symbol.replace(".NS",""); lines.append(f"  {sym} ({a.company_name}) sector={a.sector} price={a.technical_signals.current_price:.0f}")
+            if lines: return "
+".join(lines)
+    except Exception as e: logger.warning("Analytics cache failed: %s", e)
     try:
-        async with httpx.AsyncClient(timeout=45) as client:
-            resp = await client.post(
-                GROQ_URL,
-                headers={
-                    "Authorization": f"Bearer {settings.groq_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": GROQ_MODEL,
-                    "messages": messages,
-                    "max_tokens": 4096,
-                    "temperature": 0.3,  # lower temp for structured output
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code == 429:
-            raise RuntimeError("Rate limited by Groq. Please wait a moment.")
-        raise RuntimeError(f"Groq API error: {exc.response.status_code}")
-    except httpx.RequestError:
-        raise RuntimeError("Could not reach Groq API. Please try again.")
-
-    raw = (data["choices"][0]["message"].get("content") or "").strip()
-
-    # Strip markdown fences if present
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-    if raw.endswith("```"):
-        raw = raw[:-3].rstrip()
-    if raw.startswith("json"):
-        raw = raw[4:].lstrip()
-
-    try:
-        result = json.loads(raw)
-    except json.JSONDecodeError:
-        # Try to extract JSON from the response
-        start = raw.find("{")
-        end = raw.rfind("}") + 1
-        if start >= 0 and end > start:
+        from .analytics import get_stock_universe, get_stock_name, get_stock_sector, _get_cached_df
+        syms = get_stock_universe()
+        lines = ["Available stocks:"]; count=0
+        for s in syms:
+            if count>=40: break
             try:
-                result = json.loads(raw[start:end])
-            except json.JSONDecodeError:
-                raise RuntimeError("AI returned invalid JSON. Please try again.")
-        else:
-            raise RuntimeError("AI returned invalid response format. Please try again.")
+                df=_get_cached_df(s,"1y")
+                if df is None or len(df)<2: continue
+                price=float(df["close"].iloc[-1])
+                if price<=0: continue
+                lines.append(f"  {s.replace(chr(46)+'NS','')} ({get_stock_name(s)}) sector={get_stock_sector(s)} price={price:.0f}"); count+=1
+            except: continue
+        if count>0: return "
+".join(lines)
+    except Exception as e: logger.warning("Supabase fallback failed: %s", e)
+    return ""
 
-    # Validate and enrich picks with live prices
+SYSTEM_PROMPT = """You are an expert Indian equity portfolio constructor.
+Pick stocks from the list below and allocate quantities for the given investment amount and risk profile.
+Rules: only use symbols from the list; conservative=8-12 stocks; moderate=7-10 stocks 4+ sectors; aggressive=5-8 stocks 3+ sectors; no single stock >20%; quantity=floor(allocation/price); total=90-98% of budget.
+Respond ONLY with valid JSON no markdown:
+{"picks":[{"symbol":"X","company_name":"Y","sector":"Z","current_price":100.0,"quantity":10,"allocation":1000.0,"weight_pct":10.0,"reason":"..."}],"strategy_summary":"...","risk_notes":"...","total_allocated":95000,"cash_remaining":5000}"""
+
+async def ai_build_portfolio(investment_amount: float, risk_profile: str="moderate") -> dict:
+    settings = get_settings()
+    ckey = _cache_key(investment_amount, risk_profile)
+    hit = _get_cached_build(ckey)
+    if hit: return hit
+    snap = _market_snapshot()
+    if not snap: raise RuntimeError("Market data not yet loaded. Please try again in a moment.")
+    messages = [{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":f"Investment: Rs{investment_amount:,.0f} | Risk: {risk_profile.upper()}
+
+{snap}
+
+Return ONLY the JSON."}]
+    providers = []
+    if settings.openrouter_api_key:
+        h = {"Authorization":f"Bearer {settings.openrouter_api_key}","Content-Type":"application/json","HTTP-Referer":"https://stephenbaraik-paisapro.hf.space","X-Title":"PaisaPro"}
+        for m in OPENROUTER_MODELS: providers.append((settings.openrouter_url, h, m))
+    if settings.groq_api_key:
+        h = {"Authorization":f"Bearer {settings.groq_api_key}","Content-Type":"application/json"}
+        providers.append((settings.groq_url, h, "llama-3.1-8b-instant"))
+    if not providers: raise RuntimeError("No AI provider configured.")
+    data = None
+    for url, hdrs, model in providers:
+        try:
+            async with httpx.AsyncClient(timeout=60) as c:
+                r = await c.post(url, headers=hdrs, json={"model":model,"messages":messages,"max_tokens":2048,"temperature":0.2})
+                r.raise_for_status(); data=r.json()
+                logger.info("Portfolio via %s", model); break
+        except Exception as e: logger.warning("Provider %s failed: %s — trying next", model, e)
+    if data is None: raise RuntimeError("All AI providers failed. Please try again.")
+    raw = (data["choices"][0]["message"].get("content") or "").strip()
+    if raw.startswith("```"): raw = raw.split("
+",1)[1] if "
+" in raw else raw[3:]
+    if raw.endswith("```"): raw = raw[:-3].rstrip()
+    if raw.startswith("json"): raw = raw[4:].lstrip()
+    try: result = json.loads(raw)
+    except:
+        s,e = raw.find("{"), raw.rfind("}")+1
+        if s>=0 and e>s:
+            try: result=json.loads(raw[s:e])
+            except: raise RuntimeError("AI returned invalid JSON.")
+        else: raise RuntimeError("AI returned invalid response.")
     from .portfolio import _get_latest_price, _get_stock_meta
-
-    picks = result.get("picks", [])
-    validated_picks = []
-    for pick in picks:
-        sym = pick.get("symbol", "").upper().replace(".NS", "")
-        if not sym:
-            continue
-        price, change = _get_latest_price(sym)
-        name, sector = _get_stock_meta(sym)
-
-        if price <= 0:
-            price = pick.get("current_price", 0)
-
-        qty = int(pick.get("quantity", 0))
-        if qty <= 0 and price > 0:
-            alloc = pick.get("allocation", 0)
-            qty = int(alloc / price) if alloc > 0 else 0
-
-        if qty <= 0 or price <= 0:
-            continue
-
-        validated_picks.append({
-            "symbol": sym,
-            "company_name": name or pick.get("company_name", ""),
-            "sector": sector or pick.get("sector", ""),
-            "current_price": round(price, 2),
-            "daily_change_pct": change,
-            "quantity": qty,
-            "allocation": round(price * qty, 2),
-            "weight_pct": 0,  # recalculated below
-            "reason": pick.get("reason", ""),
-        })
-
-    # Post-process: scale down if total exceeds budget
-    total_allocated = sum(p["allocation"] for p in validated_picks)
-    if total_allocated > investment_amount and validated_picks:
-        scale = investment_amount * 0.97 / total_allocated  # 3% cash buffer
-        for p in validated_picks:
-            new_qty = max(1, int(p["quantity"] * scale))
-            p["quantity"] = new_qty
-            p["allocation"] = round(p["current_price"] * new_qty, 2)
-        total_allocated = sum(p["allocation"] for p in validated_picks)
-
-    # Cap any single stock at 25% of total
-    for p in validated_picks:
-        max_alloc = investment_amount * 0.25
-        if p["allocation"] > max_alloc and p["current_price"] > 0:
-            p["quantity"] = max(1, int(max_alloc / p["current_price"]))
-            p["allocation"] = round(p["current_price"] * p["quantity"], 2)
-    total_allocated = sum(p["allocation"] for p in validated_picks)
-
-    # Recalculate weights
-    for p in validated_picks:
-        p["weight_pct"] = round(p["allocation"] / investment_amount * 100, 1) if investment_amount > 0 else 0
-
-    return {
-        "picks": validated_picks,
-        "strategy_summary": result.get("strategy_summary", ""),
-        "risk_notes": result.get("risk_notes", ""),
-        "total_allocated": round(total_allocated, 2),
-        "cash_remaining": round(investment_amount - total_allocated, 2),
-        "investment_amount": investment_amount,
-        "risk_profile": risk_profile,
-    }
+    picks=[]
+    for p in result.get("picks",[]):
+        sym=p.get("symbol","").upper().replace(".NS","")
+        if not sym: continue
+        price,chg=_get_latest_price(sym); name,sec=_get_stock_meta(sym)
+        if price<=0: price=p.get("current_price",0)
+        qty=int(p.get("quantity",0))
+        if qty<=0 and price>0: qty=int(p.get("allocation",0)/price)
+        if qty<=0 or price<=0: continue
+        picks.append({"symbol":sym,"company_name":name or p.get("company_name",""),"sector":sec or p.get("sector",""),"current_price":round(price,2),"daily_change_pct":chg,"quantity":qty,"allocation":round(price*qty,2),"weight_pct":0,"reason":p.get("reason","")})
+    if not picks: raise RuntimeError("AI could not allocate any stocks. Please try again.")
+    total=sum(p["allocation"] for p in picks)
+    if total>investment_amount:
+        scale=investment_amount*0.97/total
+        for p in picks: p["quantity"]=max(1,int(p["quantity"]*scale)); p["allocation"]=round(p["current_price"]*p["quantity"],2)
+        total=sum(p["allocation"] for p in picks)
+    for p in picks:
+        ma=investment_amount*0.25
+        if p["allocation"]>ma and p["current_price"]>0: p["quantity"]=max(1,int(ma/p["current_price"])); p["allocation"]=round(p["current_price"]*p["quantity"],2)
+    total=sum(p["allocation"] for p in picks)
+    for p in picks: p["weight_pct"]=round(p["allocation"]/investment_amount*100,1) if investment_amount>0 else 0
+    final={"picks":picks,"strategy_summary":result.get("strategy_summary",""),"risk_notes":result.get("risk_notes",""),"total_allocated":round(total,2),"cash_remaining":round(investment_amount-total,2),"investment_amount":investment_amount,"risk_profile":risk_profile}
+    _set_cached_build(ckey, final)
+    return final
