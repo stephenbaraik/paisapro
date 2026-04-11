@@ -16,8 +16,12 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    # Groq (LLM provider)
+    # Groq (LLM provider — advisor streaming)
     groq_api_key: str
+
+    # OpenRouter (portfolio builder — no daily token cap)
+    openrouter_api_key: str = ""
+    openrouter_url: str = "https://openrouter.ai/api/v1/chat/completions"
 
     # Alpha Vantage
     alpha_vantage_api_key: str = ""
