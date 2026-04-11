@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
-    # OpenRouter (LLM provider — Llama + Gemini models)
+    # Groq (primary LLM — ultra-fast streaming)
+    groq_api_key: str = ""
+    groq_url: str = "https://api.groq.com/openai/v1/chat/completions"
+
+    # OpenRouter (fallback LLM provider — Llama + Gemini models)
     openrouter_api_key: str = ""
     openrouter_url: str = "https://openrouter.ai/api/v1/chat/completions"
 

@@ -36,12 +36,17 @@ CACHE_TTL = 300
 # Response cache
 _response_cache: dict[str, tuple[str, float]] = {}
 
-# OpenRouter models (in order of preference)
-# NOTE: These model IDs work without the :free suffix on OpenRouter
+# Groq models — primary path (ultra-fast streaming, ~300-500ms TTFT)
+# llama-3.1-8b-instant has a SEPARATE higher rate-limit quota from the 70B model
+GROQ_MODELS = [
+    "llama-3.1-8b-instant",      # Primary: fastest, highest rate limits
+    "llama-3.3-70b-versatile",   # Secondary: higher quality, lower daily limit
+]
+
+# OpenRouter models — fallback when Groq is rate-limited or unavailable
 OPENROUTER_MODELS = [
-    "meta-llama/llama-3.3-70b-instruct",      # Best quality Llama
-    "meta-llama/llama-3.1-70b-instruct",       # Fallback Llama 70B
-    "meta-llama/llama-3.1-8b-instruct",        # Fast fallback Llama 8B
+    "meta-llama/llama-3.3-70b-instruct",
+    "meta-llama/llama-3.1-8b-instruct",
 ]
 
 # ── Input sanitization ────────────────────────────────────────────────────────
@@ -388,20 +393,60 @@ async def _call_openrouter(settings, messages: list, model: str) -> Optional[str
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
+async def _stream_from_provider(
+    url: str,
+    headers: dict,
+    payload: dict,
+    model: str,
+) -> AsyncGenerator[str, None]:
+    """
+    Inner generator: streams SSE tokens from any OpenAI-compatible endpoint.
+    Yields token strings. Raises on HTTP error or request failure.
+    """
+    client = httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=10.0))
+    try:
+        async with client.stream("POST", url, headers=headers, json=payload) as resp:
+            if resp.status_code != 200:
+                await resp.aread()
+                raise httpx.HTTPStatusError(
+                    f"HTTP {resp.status_code}", request=resp.request, response=resp
+                )
+            line_buf = ""
+            async for chunk in resp.aiter_text():
+                line_buf += chunk
+                while "\n" in line_buf:
+                    line, line_buf = line_buf.split("\n", 1)
+                    line = line.strip()
+                    if not line.startswith("data: "):
+                        continue
+                    raw = line[6:].strip()
+                    if raw == "[DONE]":
+                        return
+                    try:
+                        obj = _json.loads(raw)
+                        token = (obj["choices"][0]["delta"].get("content") or "")
+                        if token:
+                            yield token
+                    except (_json.JSONDecodeError, KeyError, IndexError):
+                        pass
+    finally:
+        await client.aclose()
+
+
 async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator[str, None]:
     """
-    Stream AI response using TRUE OpenRouter SSE streaming.
-    Time-to-first-token: ~500 ms. No artificial delays.
+    Stream AI response — Groq first (ultra-fast), OpenRouter as fallback.
+    Time-to-first-token: ~300-500ms via Groq, ~3-5s via OpenRouter.
 
     - Cache hit  → send full reply instantly as one token.
-    - Cache miss → stream tokens live from OpenRouter, try each model in order.
+    - Cache miss → try Groq models, then OpenRouter models.
     - All fail   → stream fallback response from cached market data.
     """
     start = time.time()
     settings = get_settings()
     request.message = sanitize_input(request.message)
 
-    # ── Cache hit: send instantly ─────────────────────────────────────────────
+    # ── Cache hit ─────────────────────────────────────────────────────────────
     phash = hashlib.md5(request.profile.model_dump_json().encode()).hexdigest()[:16] if request.profile else "none"
     ckey = _cache_key(request.message, phash)
     cached = get_cached_response(ckey)
@@ -417,78 +462,64 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    if not settings.openrouter_api_key:
+    base_payload = {"messages": messages, "max_tokens": 2048, "temperature": 0.7, "stream": True}
+
+    # ── Build provider list: Groq first, then OpenRouter ─────────────────────
+    providers: list[tuple[str, str, dict]] = []  # (url, model, headers)
+
+    if settings.groq_api_key:
+        groq_headers = {
+            "Authorization": f"Bearer {settings.groq_api_key}",
+            "Content-Type": "application/json",
+        }
+        for model in GROQ_MODELS:
+            providers.append((settings.groq_url, model, groq_headers))
+
+    if settings.openrouter_api_key:
+        or_headers = {
+            "Authorization": f"Bearer {settings.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://stephenbaraik-paisapro.hf.space",
+            "X-Title": "PaisaPro AI Advisor",
+        }
+        for model in OPENROUTER_MODELS:
+            providers.append((settings.openrouter_url, model, or_headers))
+
+    if not providers:
         reply = _generate_fallback_response(request)
         yield f"data: {_json.dumps({'token': reply})}\n\n"
         yield "data: [DONE]\n\n"
         return
 
-    or_headers = {
-        "Authorization": f"Bearer {settings.openrouter_api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://stephenbaraik-paisapro.hf.space",
-        "X-Title": "PaisaPro AI Advisor",
-    }
-
-    # ── Try each model; stream tokens as they arrive ──────────────────────────
+    # ── Try each provider/model in order ─────────────────────────────────────
     reply_chunks: list[str] = []
 
-    for model in OPENROUTER_MODELS:
+    for url, model, headers in providers:
         reply_chunks = []
-        model_ok = False
-
-        client = httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=10.0))
+        payload = {**base_payload, "model": model}
         try:
-            async with client.stream(
-                "POST",
-                settings.openrouter_url,
-                headers=or_headers,
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "max_tokens": 4096,
-                    "temperature": 0.7,
-                    "stream": True,
-                },
-            ) as resp:
-                if resp.status_code != 200:
-                    await resp.aread()
-                    logger.warning("OpenRouter (%s) HTTP %d — trying next", model, resp.status_code)
-                else:
-                    line_buf = ""
-                    async for chunk in resp.aiter_text():
-                        line_buf += chunk
-                        while "\n" in line_buf:
-                            line, line_buf = line_buf.split("\n", 1)
-                            line = line.strip()
-                            if not line.startswith("data: "):
-                                continue
-                            raw = line[6:].strip()
-                            if raw == "[DONE]":
-                                model_ok = True
-                                break
-                            try:
-                                obj = _json.loads(raw)
-                                token = (obj["choices"][0]["delta"].get("content") or "")
-                                if token:
-                                    reply_chunks.append(token)
-                                    yield f"data: {_json.dumps({'token': token})}\n\n"
-                            except (_json.JSONDecodeError, KeyError, IndexError):
-                                pass
-                    if reply_chunks:
-                        model_ok = True
+            async for token in _stream_from_provider(url, headers, payload, model):
+                reply_chunks.append(token)
+                yield f"data: {_json.dumps({'token': token})}\n\n"
+
+            if reply_chunks:
+                provider_name = "Groq" if "groq" in url else "OpenRouter"
+                logger.info("%s (%s) streamed in %.2fs", provider_name, model, time.time() - start)
+                break
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                logger.warning("Rate limited by %s (%s) — trying next", url, model)
+            else:
+                logger.warning("HTTP %d from %s (%s) — trying next", e.response.status_code, url, model)
         except httpx.RequestError as e:
-            logger.warning("OpenRouter (%s) request error: %s", model, e)
-        finally:
-            await client.aclose()
+            logger.warning("Request error from %s (%s): %s — trying next", url, model, e)
+        except Exception as e:
+            logger.warning("Unexpected error from %s (%s): %s — trying next", url, model, e)
 
-        if model_ok:
-            logger.info("OpenRouter streamed via %s in %.2fs", model, time.time() - start)
-            break
-
-    # ── Fallback if all models failed ─────────────────────────────────────────
+    # ── Fallback if all providers failed ──────────────────────────────────────
     if not reply_chunks:
-        logger.warning("All OpenRouter models failed — using fallback")
+        logger.warning("All providers failed — using cached data fallback")
         reply = _generate_fallback_response(request)
         yield f"data: {_json.dumps({'token': reply})}\n\n"
     else:
@@ -501,7 +532,7 @@ async def stream_advisor_response(request: AdvisorChatRequest) -> AsyncGenerator
 # ── Non-streaming ─────────────────────────────────────────────────────────────
 
 async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatResponse:
-    """Non-streaming — OpenRouter only."""
+    """Non-streaming — Groq first, OpenRouter fallback."""
     start = time.time()
     settings = get_settings()
     request.message = sanitize_input(request.message)
@@ -518,16 +549,31 @@ async def get_advisor_response(request: AdvisorChatRequest) -> AdvisorChatRespon
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    # Try each model in order
+    # Try Groq first, then OpenRouter
     reply = None
-    for model in OPENROUTER_MODELS:
-        if not settings.openrouter_api_key:
-            break
-        reply = await _call_openrouter(settings, messages, model)
-        if reply:
-            break
+    if settings.groq_api_key:
+        for model in GROQ_MODELS:
+            try:
+                async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                    resp = await client.post(
+                        settings.groq_url,
+                        headers={"Authorization": f"Bearer {settings.groq_api_key}", "Content-Type": "application/json"},
+                        json={"model": model, "messages": messages, "max_tokens": 2048, "temperature": 0.7},
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                reply = (data["choices"][0]["message"].get("content") or "").strip() or None
+                if reply:
+                    break
+            except Exception as e:
+                logger.warning("Groq (%s) non-stream failed: %s", model, e)
 
-    # Fallback to cached data
+    if not reply and settings.openrouter_api_key:
+        for model in OPENROUTER_MODELS:
+            reply = await _call_openrouter(settings, messages, model)
+            if reply:
+                break
+
     if not reply:
         logger.warning("All LLMs failed, using fallback")
         reply = _generate_fallback_response(request)
