@@ -43,50 +43,89 @@ def _set_cached_build(key: str, result: dict) -> None:
 
 
 def _market_snapshot() -> str:
-    """Compact snapshot from analytics cache — top 20 BUY + 5 HOLD only."""
+    """
+    Compact snapshot for the LLM.
+    Primary: analytics cache (BUY/HOLD signals).
+    Fallback: live prices from Supabase when cache is cold (e.g. after Space restart).
+    """
+    # ── Primary: analytics cache ──────────────────────────────────────────────
     try:
         from .analytics import _report_cache
 
         cached, _ = _report_cache
-        if cached is None:
+        if cached is not None:
+            lines = []
+
+            buy_stocks = sorted(
+                [a for a in cached.stock_analyses if a.technical_signals.composite_signal.value == "BUY"],
+                key=lambda a: a.technical_signals.confidence_score, reverse=True,
+            )[:20]
+
+            hold_stocks = sorted(
+                [a for a in cached.stock_analyses if a.technical_signals.composite_signal.value == "HOLD"],
+                key=lambda a: a.technical_signals.confidence_score, reverse=True,
+            )[:5]
+
+            if buy_stocks:
+                lines.append("BUY signals:")
+                for a in buy_stocks:
+                    sym = a.symbol.replace(".NS", "")
+                    price = a.technical_signals.current_price
+                    lines.append(
+                        f"  {sym} ({a.company_name}) sector={a.sector} "
+                        f"price={price:.0f} conf={a.technical_signals.confidence_score:.0f}%"
+                    )
+
+            if hold_stocks:
+                lines.append("HOLD signals (high Sharpe):")
+                for a in hold_stocks:
+                    sym = a.symbol.replace(".NS", "")
+                    price = a.technical_signals.current_price
+                    lines.append(
+                        f"  {sym} ({a.company_name}) sector={a.sector} "
+                        f"price={price:.0f} sharpe={a.risk_metrics.sharpe_ratio:.2f}"
+                    )
+
+            if lines:
+                return "\n".join(lines)
+    except Exception as e:
+        logger.warning("Analytics cache snapshot failed: %s", e)
+
+    # ── Fallback: live prices from Supabase ───────────────────────────────────
+    try:
+        from .analytics import get_stock_universe, get_stock_name, get_stock_sector, _get_cached_df
+
+        symbols_ns = get_stock_universe()
+        if not symbols_ns:
             return ""
 
-        lines = []
+        lines = ["Available stocks (live prices):"]
+        count = 0
+        for sym_ns in symbols_ns:
+            if count >= 40:
+                break
+            sym = sym_ns.replace(".NS", "")
+            try:
+                df = _get_cached_df(sym_ns, "1y")
+                if df is None or len(df) < 2:
+                    continue
+                price = float(df["close"].iloc[-1])
+                if price <= 0:
+                    continue
+                name = get_stock_name(sym_ns) or sym
+                sector = get_stock_sector(sym_ns) or "Unknown"
+                lines.append(f"  {sym} ({name}) sector={sector} price={price:.0f}")
+                count += 1
+            except Exception:
+                continue
 
-        buy_stocks = sorted(
-            [a for a in cached.stock_analyses if a.technical_signals.composite_signal.value == "BUY"],
-            key=lambda a: a.technical_signals.confidence_score, reverse=True,
-        )[:20]
-
-        hold_stocks = sorted(
-            [a for a in cached.stock_analyses if a.technical_signals.composite_signal.value == "HOLD"],
-            key=lambda a: a.technical_signals.confidence_score, reverse=True,
-        )[:5]
-
-        if buy_stocks:
-            lines.append("BUY signals:")
-            for a in buy_stocks:
-                sym = a.symbol.replace(".NS", "")
-                price = a.technical_signals.current_price
-                lines.append(
-                    f"  {sym} ({a.company_name}) sector={a.sector} "
-                    f"price={price:.0f} conf={a.technical_signals.confidence_score:.0f}%"
-                )
-
-        if hold_stocks:
-            lines.append("HOLD signals (high Sharpe):")
-            for a in hold_stocks:
-                sym = a.symbol.replace(".NS", "")
-                price = a.technical_signals.current_price
-                lines.append(
-                    f"  {sym} ({a.company_name}) sector={a.sector} "
-                    f"price={price:.0f} sharpe={a.risk_metrics.sharpe_ratio:.2f}"
-                )
-
-        return "\n".join(lines)
+        if count > 0:
+            logger.info("Portfolio snapshot: used Supabase fallback (%d stocks)", count)
+            return "\n".join(lines)
     except Exception as e:
-        logger.warning("Market snapshot failed: %s", e)
-        return ""
+        logger.warning("Supabase fallback snapshot failed: %s", e)
+
+    return ""
 
 
 SYSTEM_PROMPT = """You are an expert Indian equity portfolio constructor.
